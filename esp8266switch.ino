@@ -45,8 +45,6 @@ PubSubClient mqClient(espClient);
 void setup() {
   Serial.begin(115200);
 
-  //factoryReset();
-  
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(RELAY, OUTPUT);
 
@@ -111,15 +109,21 @@ void loop() {
       Serial.println("Button released....");
 
       //delayed off timer
-      if (now - buttomPressed > 1000) {
+      if (now - buttomPressed > 1750) {
         delayOffTime = (now - buttomPressed) * 60;
         Serial.print("Delay timer set for ");
         Serial.println(delayOffTime);
         delayOffTime += now; 
-      }
+      } 
       
       buttomPressed = false;
       bounceTimeout = now;
+
+    //after 30sec perfrom factory reset
+    } else if (buttomPressed && (now - buttomPressed) > 30000 ) {
+        ticker.attach(0.2, tick);
+        delay(2000);
+        factoryReset();
     }
   }
 
@@ -166,8 +170,8 @@ void turnOff() {
 }
 
 void sendCurrentStatus() {
-  char jsonStatusMsg[70];
-  sprintf (jsonStatusMsg, "{\"status\":%s}", relayState ? "\"ON\"" : "\"OFF\"");
+  char jsonStatusMsg[140];
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", delayOffTime);
 
   mqClient.publish((char *)statusTopic, (char *)jsonStatusMsg);
 }
@@ -285,8 +289,8 @@ void mqttInit() {
   mqClient.setServer(mqttServer, 1883);
   mqClient.setCallback(mqttCallback);
 
-  sprintf (commandTopic, "home/%s/%s/command", locationName, deviceName);
-  sprintf (statusTopic, "home/%s/%s/status", locationName, deviceName);
+  sprintf (commandTopic, "house/%s/%s/command", locationName, deviceName);
+  sprintf (statusTopic, "house/%s/%s/status", locationName, deviceName);
 }
 
 void mqttReconnect() {
@@ -315,6 +319,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     turnOff();
   } else if ((char)payload[0] == '2') {
     toogleSwitch();
+  } else if ((char)payload[0] == '3') {
+    sendCurrentStatus();
   }
 }
 
