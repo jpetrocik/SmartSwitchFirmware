@@ -16,12 +16,12 @@
 Ticker ticker;
 
 //current status of relay
-int relayState = OPEN;
+int relayState = RELAY_OPEN;
 
 //maintains when the button was pressed
 //action is taken on button release
 //this allows for long press features
-unsigned long buttomPressed = false;
+unsigned long buttomPressed = false; //time button was press, so must be unsigned long
 long bounceTimeout = 0;
 
 //configuration properties
@@ -36,6 +36,8 @@ char statusTopic[70];
 //config data needs to be saved
 bool shouldSaveConfig = false;
 
+long delayOffTime = 0;
+
 //mqtt client
 WiFiClient espClient;
 PubSubClient mqClient(espClient);
@@ -43,6 +45,8 @@ PubSubClient mqClient(espClient);
 void setup() {
   Serial.begin(115200);
 
+  //factoryReset();
+  
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(RELAY, OUTPUT);
 
@@ -81,12 +85,18 @@ void setup() {
 void loop() {
   long now = millis();
 
+  //check for delayed off timer
+  if (delayOffTime > 0 && delayOffTime < now){
+    Serial.println("Delayed turning off");
+    turnOff();
+  }
+
   //action is taken when button is released. any
   //button pressed within 100ms is consider a bounce and
   //ignored.
   //
-  //<5: toggle relay
-  //>5: factory reset to be performed
+  //<1.5sec: toggle relay
+  //>1.5: delay off sec * minutes
   if (now - bounceTimeout  > 100 ) {
 
     //button initially pressed
@@ -94,37 +104,39 @@ void loop() {
       Serial.println("Button pressed....");
       buttomPressed = now;
       bounceTimeout = now;
+      toogleSwitch();
 
     //button is released  
     } else if (digitalRead(WIFI_BUTTON) && buttomPressed) {
       Serial.println("Button released....");
-      if (now - buttomPressed > 5000) {
-        factoryReset();
-      } else {
-        toogleSwitch();
+
+      //delayed off timer
+      if (now - buttomPressed > 1000) {
+        delayOffTime = (now - buttomPressed) * 60;
+        Serial.print("Delay timer set for ");
+        Serial.println(delayOffTime);
+        delayOffTime += now; 
       }
+      
       buttomPressed = false;
       bounceTimeout = now;
-
-    //button is held  
-    } else if (buttomPressed) {
-      if (now - buttomPressed > 5000) {
-          //indicate factory reset
-          ticker.attach(0.2, tick);
-      }
     }
   }
 
   //Check MQTT
   if (!mqClient.connected()) {
+    Serial.println("Reconnecting to MQTT Server....");
     mqttReconnect();
   }
   mqClient.loop();
 
+  //Check for OTA Updates
+  ArduinoOTA.handle();
+
 }
 
 void toogleSwitch() {
-  if (relayState == CLOSED) {
+  if (relayState == RELAY_CLOSED) {
     turnOff();
   } else {
     turnOn();
@@ -134,20 +146,26 @@ void toogleSwitch() {
 void turnOn() {
   digitalWrite(RELAY, HIGH);
   digitalWrite(ONBOARD_LED, LED_ON);
-  relayState = CLOSED;
+  relayState = RELAY_CLOSED;
 
-  sendStatusUpdate();
+  //cancel delayTimer
+  delayOffTime = 0;
+
+  sendCurrentStatus();
 }
 
 void turnOff() {
   digitalWrite(RELAY, LOW);
   digitalWrite(ONBOARD_LED, LED_OFF);
-  relayState = OPEN;
+  relayState = RELAY_OPEN;
 
-  sendStatusUpdate();
+  //reset or cancel delayTimer
+  delayOffTime = 0;
+
+  sendCurrentStatus();
 }
 
-String sendStatusUpdate() {
+void sendCurrentStatus() {
   char jsonStatusMsg[70];
   sprintf (jsonStatusMsg, "{\"status\":%s}", relayState ? "\"ON\"" : "\"OFF\"");
 
@@ -194,10 +212,10 @@ void wifiSetup() {
   wifiManager.addParameter(&wifiDeviceNameParam);
   wifiManager.addParameter(&wifiLocationNameParam);
   wifiManager.addParameter(&wifiMqttServerParam);
-  wifiManager.autoConnect("SmartHome-" + ESP.getChipId());
+  wifiManager.autoConnect("SmartHome");//-" + ESP.getChipId());
 
   strncpy(deviceName, wifiDeviceNameParam.getValue(), 20);
-  strncpy(locationName, wifiDeviceNameParam.getValue(), 20);
+  strncpy(locationName, wifiLocationNameParam.getValue(), 20);
   strncpy(mqttServer, wifiMqttServerParam.getValue(), 50);
 }
 
@@ -225,6 +243,7 @@ void configSave() {
     File configFile = SPIFFS.open("/config.json", "w");
     if (configFile) {
       Serial.println("Saving config data....");
+      json.printTo(Serial);
       json.printTo(configFile);
       configFile.close();
     }
@@ -262,23 +281,23 @@ void configLoad() {
  * MQTT
  ******************************************/
 void mqttInit() {
-  Serial.println("Connection to MQTT Server....");
-  Serial.println(mqttServer);
+  Serial.println("Connecting to MQTT Server....");
   mqClient.setServer(mqttServer, 1883);
   mqClient.setCallback(mqttCallback);
 
   sprintf (commandTopic, "home/%s/%s/command", locationName, deviceName);
-  sprintf (statusTopic, "home/%s/%s/command", locationName, deviceName);
+  sprintf (statusTopic, "home/%s/%s/status", locationName, deviceName);
 }
 
 void mqttReconnect() {
   while (!mqClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
     // Attempt to connect
     if (mqClient.connect(hostname)) {
       Serial.println("connected");
       mqClient.subscribe(commandTopic);
     } else {
+      Serial.print("Failed to connect to ");
+      Serial.println(mqttServer);
       Serial.print("failed, rc=");
       Serial.print(mqClient.state());
       Serial.println(" try again in 5 seconds");
@@ -303,7 +322,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 /******************************************
  * Arduino OTA
  ******************************************/
-void otaInit() {
+void otaInit() { 
+  Serial.println("Enabling OTA Updates");
+
   // Port defaults to 8266
   // ArduinoOTA.setPort(8266);
 
@@ -313,9 +334,11 @@ void otaInit() {
   // ArduinoOTA.setPassword((const char *)"123");
 
   ArduinoOTA.onStart([]() {
+    ticker.attach(0.6, tick);
     Serial.println("OTA Update Start....");
   });
   ArduinoOTA.onEnd([]() {
+    ticker.attach(0.2, tick);
     Serial.println("\nOTA Update Finished");
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
