@@ -301,6 +301,7 @@ void mqttConnect() {
     if (mqClient.connect(hostname)) {
       Serial.println("connected");
       mqClient.subscribe(commandTopic);
+      mqClient.subscribe("house/command");
       
       reconnectAttemptCounter = 0;
       nextReconnectAttempt=0;
