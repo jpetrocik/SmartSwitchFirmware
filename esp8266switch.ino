@@ -170,8 +170,9 @@ void turnOff() {
 }
 
 void sendCurrentStatus() {
+  long remainingTimer  = delayOffTime - millis();
   char jsonStatusMsg[140];
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", delayOffTime);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer>0?remainingTimer:0);
 
   mqClient.publish((char *)statusTopic, (char *)jsonStatusMsg);
 }
