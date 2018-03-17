@@ -1,7 +1,7 @@
 #ifndef Devices_h
 #define Devices_h
 
-#define SONOFF_SMARTSWITCH
+//#define SONOFF_SMARTSWITCH
 //#define SONOFF_SMARTPLUG
 //#define KS602S
 

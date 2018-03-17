@@ -248,7 +248,6 @@ void configSave() {
     File configFile = SPIFFS.open("/config.json", "w");
     if (configFile) {
       Serial.println("Saving config data....");
-      json.printTo(Serial);
       json.printTo(configFile);
       configFile.close();
     }
@@ -310,14 +309,16 @@ void mqttConnect() {
       Serial.print("Failed to connect to ");
       Serial.println(mqttServer);
 
-      //calculate next delay, with max delay of 30sec
+
       reconnectAttemptCounter++;
-      nextReconnectAttempt = millis() +  (sq(reconnectAttemptCounter) * 1000);
+      nextReconnectAttempt = sq(reconnectAttemptCounter) * 1000;
       if (nextReconnectAttempt > 30000) nextReconnectAttempt = 30000;
       
       Serial.print("Will reattempt to connect in ");
-      Serial.print(sq(reconnectAttemptCounter) * 1000);
+      Serial.print(nextReconnectAttempt);
       Serial.println(" seconds");
+
+      nextReconnectAttempt += millis();
     }
   }
 }
