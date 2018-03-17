@@ -127,12 +127,12 @@ void loop() {
     }
   }
 
-  //Check MQTT
+  //Connect or read message
   if (!mqClient.connected()) {
-    Serial.println("Reconnecting to MQTT Server....");
-    mqttReconnect();
+    mqttConnect();
+  } else {
+    mqClient.loop();
   }
-  mqClient.loop();
 
   //Check for OTA Updates
   ArduinoOTA.handle();
@@ -294,20 +294,30 @@ void mqttInit() {
   sprintf (statusTopic, "house/%s/%s/status", locationName, deviceName);
 }
 
-void mqttReconnect() {
-  while (!mqClient.connected()) {
-    // Attempt to connect
+int reconnectAttemptCounter = 0;
+long nextReconnectAttempt = 0;
+void mqttConnect() {
+  if(!mqClient.connected() && nextReconnectAttempt < millis() ) {
+    
     if (mqClient.connect(hostname)) {
       Serial.println("connected");
       mqClient.subscribe(commandTopic);
+      
+      reconnectAttemptCounter = 0;
+      nextReconnectAttempt=0;
+      
     } else {
       Serial.print("Failed to connect to ");
       Serial.println(mqttServer);
-      Serial.print("failed, rc=");
-      Serial.print(mqClient.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
+
+      //calculate next delay, with max delay of 30sec
+      reconnectAttemptCounter++;
+      nextReconnectAttempt = millis() +  (sq(reconnectAttemptCounter) * 1000);
+      if (nextReconnectAttempt > 30000) nextReconnectAttempt = 30000;
+      
+      Serial.print("Will reattempt to connect in ");
+      Serial.print(sq(reconnectAttemptCounter) * 1000);
+      Serial.println(" seconds");
     }
   }
 }
