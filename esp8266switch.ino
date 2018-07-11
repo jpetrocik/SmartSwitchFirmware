@@ -15,18 +15,11 @@
 
 Ticker ticker;
 
-//current status of relay
-int relayState = RELAY_OPEN;
-
-//maintains when the button was pressed
-//action is taken on button release
-//this allows for long press features
-unsigned long buttomPressed = false; //time button was press, so must be unsigned long
-long bounceTimeout = 0;
+int lastKnownDoorStatus = -1;
 
 //configuration properties
-char deviceName[20] = "light";
-char locationName[20] = "bedroom";
+char deviceName[20] = "opener";
+char locationName[20] = "garage";
 char mqttServer[50] = "mqtt.local";
 char hostname[41];
 char commandTopic[70];
@@ -35,8 +28,6 @@ char statusTopic[70];
 //set when AP mode is enabled to indicating the
 //config data needs to be saved
 bool shouldSaveConfig = false;
-
-long delayOffTime = 0;
 
 //mqtt client
 WiFiClient espClient;
@@ -47,6 +38,7 @@ void setup() {
 
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(RELAY, OUTPUT);
+  pinMode(DOOR_STATUS, INPUT);
 
   //slow ticker when starting up
   //switch to fast tick when in AP mode
@@ -63,7 +55,7 @@ void setup() {
   mdnsInit();
 
   ticker.detach();
-
+  
   //init over the air update server
   otaInit();
 
@@ -71,62 +63,18 @@ void setup() {
   mqttInit();
 
   const char version[] = "v1.0-beta" __DATE__ " " __TIME__;
-  Serial.println("SmartHome Firmware");
+  Serial.println("SmartGarage Firmware");
   Serial.println(version);
   Serial.println(hostname);
   Serial.println(commandTopic);
   Serial.println(statusTopic);
 
-  digitalWrite(ONBOARD_LED, HIGH);
+  lastKnownDoorStatus = digitalRead(DOOR_STATUS);
+  digitalWrite(ONBOARD_LED, lastKnownDoorStatus);
+
 }
 
 void loop() {
-  long now = millis();
-
-  //check for delayed off timer
-  if (delayOffTime > 0 && delayOffTime < now){
-    Serial.println("Delayed turning off");
-    turnOff();
-  }
-
-  //action is taken when button is released. any
-  //button pressed within 100ms is consider a bounce and
-  //ignored.
-  //
-  //<1.5sec: toggle relay
-  //>1.5: delay off sec * minutes
-  if (now - bounceTimeout  > 100 ) {
-
-    //button initially pressed
-    if (!digitalRead(WIFI_BUTTON) && !buttomPressed) {
-      Serial.println("Button pressed....");
-      buttomPressed = now;
-      bounceTimeout = now;
-      toogleSwitch();
-
-    //button is released  
-    } else if (digitalRead(WIFI_BUTTON) && buttomPressed) {
-      Serial.println("Button released....");
-
-      //delayed off timer
-      if (now - buttomPressed > 1750) {
-        delayOffTime = (now - buttomPressed) * 60;
-        Serial.print("Delay timer set for ");
-        Serial.println(delayOffTime);
-        delayOffTime += now; 
-      } 
-      
-      buttomPressed = false;
-      bounceTimeout = now;
-
-    //after 30sec perfrom factory reset
-    } else if (buttomPressed && (now - buttomPressed) > 30000 ) {
-        ticker.attach(0.2, tick);
-        delay(2000);
-        factoryReset();
-    }
-  }
-
   //Connect or read message
   if (!mqClient.connected()) {
     mqttConnect();
@@ -134,56 +82,49 @@ void loop() {
     mqClient.loop();
   }
 
+  sendDoorStatusOnChange();
+  
   //Check for OTA Updates
   ArduinoOTA.handle();
 
 }
 
-void toogleSwitch() {
-  if (relayState == RELAY_CLOSED) {
-    turnOff();
-  } else {
-    turnOn();
-  }
+void openDoor() {
+  //if (lastKnownDoorStatus == DOOR_CLOSED){
+    toogleDoor();
+  //} 
 }
 
-void turnOn() {
+void closeDoor() {
+//  if (lastKnownDoorStatus == DOOR_OPEN){
+    toogleDoor();
+//  } 
+}
+
+void toogleDoor(){
   digitalWrite(RELAY, HIGH);
-  digitalWrite(ONBOARD_LED, LED_ON);
-  relayState = RELAY_CLOSED;
-
-  //cancel delayTimer
-  delayOffTime = 0;
-
-  sendCurrentStatus();
-}
-
-void turnOff() {
+  delay(500);
   digitalWrite(RELAY, LOW);
-  digitalWrite(ONBOARD_LED, LED_OFF);
-  relayState = RELAY_OPEN;
-
-  //reset or cancel delayTimer
-  delayOffTime = 0;
-
-  sendCurrentStatus();
 }
 
-void sendCurrentStatus() {
-  long remainingTimer  = delayOffTime - millis();
-  char jsonStatusMsg[140];
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer>0?remainingTimer:0);
+void sendCurrentDoorStatus() {
+  int doorState = !digitalRead(DOOR_STATUS);
 
+  char jsonStatusMsg[140];
+  sprintf (jsonStatusMsg, "{\"status\":%s}", doorState ? "\"OFF\"" : "\"ON\"");
+    
   mqClient.publish((char *)statusTopic, (char *)jsonStatusMsg);
 }
 
-void factoryReset() {
-  Serial.println("Restoring Factory Setting....");
-  WiFi.disconnect();
-  SPIFFS.format();
-  delay(500);
-  Serial.println("Restarting....");
-  ESP.restart();
+void sendDoorStatusOnChange() {
+  int doorStatus = digitalRead(DOOR_STATUS);
+
+  if (doorStatus != lastKnownDoorStatus) {
+    sendCurrentDoorStatus();
+    lastKnownDoorStatus = doorStatus;
+    digitalWrite(ONBOARD_LED, !doorStatus);
+    
+  }
 }
 
 void tick() {
@@ -226,8 +167,6 @@ void wifiSetup() {
 
 //call by WifiManager when entering AP mode
 void configModeCallback (WiFiManager *myWiFiManager) {
-  //fast ticker while waiting to config
-  ticker.attach(0.2, tick);
 }
 //callback notifying us of the need to save config
 void saveConfigCallback () {
@@ -327,13 +266,11 @@ void mqttConnect() {
 //callback when a mqtt message is recieved
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if ((char)payload[0] == '1') {
-    turnOn();
+    openDoor();
   } else if ((char)payload[0] == '0') {
-    turnOff();
-  } else if ((char)payload[0] == '2') {
-    toogleSwitch();
+    closeDoor();
   } else if ((char)payload[0] == '3') {
-    sendCurrentStatus();
+    sendCurrentDoorStatus();
   }
 }
 
