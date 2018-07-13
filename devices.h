@@ -3,7 +3,7 @@
 
 //#define SONOFF_SMARTSWITCH
 //#define SONOFF_SMARTPLUG
-//#define KS602S
+#define KS602S
 
 //LED Status light constants
 #define LED_ON LOW
@@ -12,6 +12,8 @@
 //Relay state
 #define RELAY_OPEN 0
 #define RELAY_CLOSED 1
+
+#define MAX_ON_TIMER 20*60*1000
 
 #if defined (SONOFF_SMARTPLUG)
   #define ONBOARD_LED 13

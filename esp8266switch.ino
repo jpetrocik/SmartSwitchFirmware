@@ -108,8 +108,12 @@ void loop() {
     } else if (digitalRead(WIFI_BUTTON) && buttomPressed) {
       Serial.println("Button released....");
 
+      #if defined (MAX_ON_TIMER)
+      delayOffTime = now + MAX_ON_TIMER;
+      #endif
+      
       //delayed off timer
-      if (now - buttomPressed > 1750) {
+      if (now - buttomPressed > 1ooo) {
         delayOffTime = (now - buttomPressed) * 60;
         Serial.print("Delay timer set for ");
         Serial.println(delayOffTime);
