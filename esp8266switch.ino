@@ -113,7 +113,7 @@ void loop() {
       #endif
       
       //delayed off timer
-      if (now - buttomPressed > 1ooo) {
+      if (now - buttomPressed > 1000) {
         delayOffTime = (now - buttomPressed) * 60;
         Serial.print("Delay timer set for ");
         Serial.println(delayOffTime);
