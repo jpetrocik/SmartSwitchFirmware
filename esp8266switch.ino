@@ -16,7 +16,7 @@
 Ticker ticker;
 
 //current status of relay
-int relayState = RELAY_OPEN;
+int relayState = RELAY_OFF;
 
 //maintains when the button was pressed
 //action is taken on button release
@@ -31,12 +31,18 @@ char mqttServer[50] = "mqtt.local";
 char hostname[41];
 char commandTopic[70];
 char statusTopic[70];
+int relayPin = RELAY;
+int ledPin = ONBOARD_LED;
+int buttonPin = WIFI_BUTTON;
+int maxOnTimer = 0;
 
 //set when AP mode is enabled to indicating the
 //config data needs to be saved
 bool shouldSaveConfig = false;
 
 long delayOffTime = 0;
+
+double version = 1.1;
 
 //mqtt client
 WiFiClient espClient;
@@ -45,20 +51,22 @@ PubSubClient mqClient(espClient);
 void setup() {
   Serial.begin(115200);
 
-  pinMode(ONBOARD_LED, OUTPUT);
-  pinMode(RELAY, OUTPUT);
+  configLoad();
+
+//  const char version[] = "v1.0-beta";
+  Serial.println("SmartHome Firmware");
+//  Serial.println(version);
+  Serial.println(__DATE__ " " __TIME__);
+  Serial.println(hostname);
+
+  pinMode(ledPin, OUTPUT);
+  pinMode(relayPin, OUTPUT);
 
   //slow ticker when starting up
   //switch to fast tick when in AP mode
   ticker.attach(0.6, tick);
 
-  configLoad();
-
   wifiSetup();
-
-  if (shouldSaveConfig) {
-    configSave();
-  }
 
   mdnsInit();
 
@@ -70,14 +78,7 @@ void setup() {
   //connect to mqtt servier
   mqttInit();
 
-  const char version[] = "v1.0-beta" __DATE__ " " __TIME__;
-  Serial.println("SmartHome Firmware");
-  Serial.println(version);
-  Serial.println(hostname);
-  Serial.println(commandTopic);
-  Serial.println(statusTopic);
-
-  digitalWrite(ONBOARD_LED, HIGH);
+  digitalWrite(ledPin, HIGH);
 }
 
 void loop() {
@@ -98,22 +99,18 @@ void loop() {
   if (now - bounceTimeout  > 100 ) {
 
     //button initially pressed
-    if (!digitalRead(WIFI_BUTTON) && !buttomPressed) {
+    if (!digitalRead(buttonPin) && !buttomPressed) {
       Serial.println("Button pressed....");
       buttomPressed = now;
       bounceTimeout = now;
       toogleSwitch();
 
     //button is released  
-    } else if (digitalRead(WIFI_BUTTON) && buttomPressed) {
+    } else if (digitalRead(buttonPin) && buttomPressed) {
       Serial.println("Button released....");
-
-      #if defined (MAX_ON_TIMER)
-      delayOffTime = now + MAX_ON_TIMER;
-      #endif
-      
+       
       //delayed off timer
-      if (now - buttomPressed > 1000) {
+      if ((now - buttomPressed > 1000) && (relayState == RELAY_ON)) {
         delayOffTime = (now - buttomPressed) * 60;
         Serial.print("Delay timer set for ");
         Serial.println(delayOffTime);
@@ -144,7 +141,7 @@ void loop() {
 }
 
 void toogleSwitch() {
-  if (relayState == RELAY_CLOSED) {
+  if (relayState == RELAY_ON) {
     turnOff();
   } else {
     turnOn();
@@ -152,20 +149,25 @@ void toogleSwitch() {
 }
 
 void turnOn() {
-  digitalWrite(RELAY, HIGH);
-  digitalWrite(ONBOARD_LED, LED_ON);
-  relayState = RELAY_CLOSED;
+  digitalWrite(relayPin, HIGH);
+  digitalWrite(ledPin, LED_ON);
+  relayState = RELAY_ON;
 
   //cancel delayTimer
   delayOffTime = 0;
 
+  if(maxOnTimer > 0) {
+    long now = millis();
+    delayOffTime = now + (maxOnTimer * 60 * 1000);
+  }     
+  
   sendCurrentStatus();
 }
 
 void turnOff() {
-  digitalWrite(RELAY, LOW);
-  digitalWrite(ONBOARD_LED, LED_OFF);
-  relayState = RELAY_OPEN;
+  digitalWrite(relayPin, LOW);
+  digitalWrite(ledPin, LED_OFF);
+  relayState = RELAY_OFF;
 
   //reset or cancel delayTimer
   delayOffTime = 0;
@@ -191,8 +193,8 @@ void factoryReset() {
 }
 
 void tick() {
-  int state = digitalRead(ONBOARD_LED);
-  digitalWrite(ONBOARD_LED, !state);
+  int state = digitalRead(ledPin);
+  digitalWrite(ledPin, !state);
 }
 
 /******************************************
@@ -212,20 +214,35 @@ void wifiSetup() {
   Serial.println("Setting up wifi connection....");
   WiFiManager wifiManager;
 
+  wifiManager.setDebugOutput(false);
+
   WiFiManagerParameter wifiDeviceNameParam("device", "Name", deviceName, 20);
   WiFiManagerParameter wifiLocationNameParam("location", "Location", locationName, 20);
   WiFiManagerParameter wifiMqttServerParam("mqtt", "MQTT Server", mqttServer, 50);
+  WiFiManagerParameter wifiRelayParam("relay", "Relay", "", 5);
+  WiFiManagerParameter wifiLedParam("led", "LED", "", 5);
+  WiFiManagerParameter wifimaxOnTimerParam("maxOnTimer", "Max On Timer", "", 5);
 
   wifiManager.setAPCallback(configModeCallback);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
   wifiManager.addParameter(&wifiDeviceNameParam);
   wifiManager.addParameter(&wifiLocationNameParam);
   wifiManager.addParameter(&wifiMqttServerParam);
+  wifiManager.addParameter(&wifiRelayParam);
+  wifiManager.addParameter(&wifiLedParam);
+  wifiManager.addParameter(&wifimaxOnTimerParam);
   wifiManager.autoConnect("SmartHome");//-" + ESP.getChipId());
 
-  strncpy(deviceName, wifiDeviceNameParam.getValue(), 20);
-  strncpy(locationName, wifiLocationNameParam.getValue(), 20);
-  strncpy(mqttServer, wifiMqttServerParam.getValue(), 50);
+  if (shouldSaveConfig) {
+    strncpy(deviceName, wifiDeviceNameParam.getValue(), 20);
+    strncpy(locationName, wifiLocationNameParam.getValue(), 20);
+    strncpy(mqttServer, wifiMqttServerParam.getValue(), 50);
+    relayPin = atoi(wifiRelayParam.getValue());
+    ledPin = atoi(wifiLedParam.getValue());
+    maxOnTimer = atoi(wifimaxOnTimerParam.getValue());
+
+    configSave();
+  }
 }
 
 //call by WifiManager when entering AP mode
@@ -233,6 +250,7 @@ void configModeCallback (WiFiManager *myWiFiManager) {
   //fast ticker while waiting to config
   ticker.attach(0.2, tick);
 }
+
 //callback notifying us of the need to save config
 void saveConfigCallback () {
   Serial.println("Entering AP Mode....");
@@ -247,6 +265,10 @@ void configSave() {
     json["device"] = deviceName;
     json["location"] = locationName;
     json["mqttServer"] = mqttServer;
+    json.set("relay",relayPin);
+    json.set("led",ledPin);
+    json.set("button",buttonPin);
+    json.set("maxOnTimer",maxOnTimer);
     sprintf (hostname, "%s-%s", locationName, deviceName);
 
     File configFile = SPIFFS.open("/config.json", "w");
@@ -277,6 +299,11 @@ void configLoad() {
           strncpy(locationName, json["location"], 20);
           strncpy(mqttServer, json["mqttServer"], 50);
           sprintf (hostname, "%s-%s", locationName, deviceName);
+          if (version >= 1.1) {
+            relayPin = json.get<signed int>("relay");
+            ledPin = json.get<signed int>("led");
+            maxOnTimer = json.get<signed int>("maxOnTimer");
+          }
 
         }
       }
@@ -295,6 +322,7 @@ void mqttInit() {
 
   sprintf (commandTopic, "house/%s/%s/command", locationName, deviceName);
   sprintf (statusTopic, "house/%s/%s/status", locationName, deviceName);
+
 }
 
 int reconnectAttemptCounter = 0;
@@ -303,10 +331,11 @@ void mqttConnect() {
   if(!mqClient.connected() && nextReconnectAttempt < millis() ) {
     
     if (mqClient.connect(hostname)) {
-      Serial.println("connected");
+      Serial.println("Connected to MQTT Server");
+      Serial.println(commandTopic);
       mqClient.subscribe(commandTopic);
       mqClient.subscribe("house/command");
-      
+
       reconnectAttemptCounter = 0;
       nextReconnectAttempt=0;
       
