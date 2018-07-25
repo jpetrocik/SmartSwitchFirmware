@@ -38,6 +38,12 @@
 //  #define LED_ON HIGH
 //  #define LED_OFF HIGH
 //#endif
-
+//
+//#if defined (SONOFF_DUAL_R2)
+//  #define ONBOARD_LED 13
+//  #define RELAY 12
+//  #define RELAY_2 5
+//  #define WIFI_BUTTON 10
+//#endif
 
 #endif

@@ -42,7 +42,7 @@ bool shouldSaveConfig = false;
 
 long delayOffTime = 0;
 
-double version = 1.1;
+double configVersion = 1.1;
 
 //mqtt client
 WiFiClient espClient;
@@ -51,11 +51,12 @@ PubSubClient mqClient(espClient);
 void setup() {
   Serial.begin(115200);
 
+//  factoryReset();
+  
   configLoad();
 
 //  const char version[] = "v1.0-beta";
   Serial.println("SmartHome Firmware");
-//  Serial.println(version);
   Serial.println(__DATE__ " " __TIME__);
   Serial.println(hostname);
 
@@ -231,7 +232,7 @@ void wifiSetup() {
   wifiManager.addParameter(&wifiRelayParam);
   wifiManager.addParameter(&wifiLedParam);
   wifiManager.addParameter(&wifimaxOnTimerParam);
-  wifiManager.autoConnect("SmartHome");//-" + ESP.getChipId());
+  wifiManager.autoConnect("SmartSwitch");//-" + ESP.getChipId());
 
   if (shouldSaveConfig) {
     strncpy(deviceName, wifiDeviceNameParam.getValue(), 20);
@@ -262,6 +263,7 @@ void saveConfigCallback () {
 void configSave() {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
+    json.set("version",configVersion);
     json["device"] = deviceName;
     json["location"] = locationName;
     json["mqttServer"] = mqttServer;
@@ -295,11 +297,12 @@ void configLoad() {
         DynamicJsonBuffer jsonBuffer;
         JsonObject& json = jsonBuffer.parseObject(buf.get());
         if (json.success()) {
+          configVersion = json.get<signed int>("version");
           strncpy(deviceName, json["device"], 20);
           strncpy(locationName, json["location"], 20);
           strncpy(mqttServer, json["mqttServer"], 50);
           sprintf (hostname, "%s-%s", locationName, deviceName);
-          if (version >= 1.1) {
+          if (configVersion >= 1.1) {
             relayPin = json.get<signed int>("relay");
             ledPin = json.get<signed int>("led");
             maxOnTimer = json.get<signed int>("maxOnTimer");
