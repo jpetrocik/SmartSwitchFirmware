@@ -23,7 +23,7 @@ int lastKnownDoorStatus = -1;
 char jsonStatusMsg[140];
 
 //configuration properties
-char deviceName[20] = "opener";
+char deviceName[20] = "door";
 char locationName[20] = "garage";
 char mqttServer[50] = "mqtt.local";
 char hostname[41];
@@ -56,14 +56,12 @@ void setup() {
 
   ticker.detach();
   
-  const char version[] = "v1.0-beta" __DATE__ " " __TIME__;
   Serial.println("SmartGarage Firmware");
   Serial.println(__DATE__ " " __TIME__);
   Serial.println(hostname);
 
   lastKnownDoorStatus = digitalRead(DOOR_STATUS);
-  digitalWrite(ONBOARD_LED, lastKnownDoorStatus);
-
+  digitalWrite(ONBOARD_LED, !lastKnownDoorStatus);
 }
 
 void loop() {
@@ -84,7 +82,7 @@ void toogleDoor(){
 
 void sendCurrentDoorStatus() {
   int doorState = !digitalRead(DOOR_STATUS);
-  sprintf (jsonStatusMsg, "{\"status\":%s}", doorState ? "\"CLOSED\"" : "\"OPEN\"");
+  sprintf (jsonStatusMsg, "{\"status\":%s}", doorState ? "\"OFF\"" : "\"ON\"");
 
   mqttSendStatus();
 }

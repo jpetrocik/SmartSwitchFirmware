@@ -9,7 +9,7 @@ void wifiSetup() {
   wifiManager.setConfigPortalTimeout(300);
   wifiManager.setDebugOutput(false);
   wifiManager.setAPCallback(wifiConfigModeCallback);
-  if (!wifiManager.autoConnect("SmartSwitch")) { //-" + ESP.getChipId())) {
+  if (!wifiManager.autoConnect("SmartGarage")) { //-" + ESP.getChipId())) {
     Serial.println("Failed to connect, trying again...");
     ESP.restart();
   }
