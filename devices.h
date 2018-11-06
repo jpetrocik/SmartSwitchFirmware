@@ -1,12 +1,33 @@
 #ifndef Devices_h
 #define Devices_h
 
-#define ONBOARD_LED 2
-#define DOOR_STATUS 12
-#define RELAY 14
+typedef struct DEVICE_TMPLT {
+  char        name[15];
+  int         relayPin;
+  int         ledPin;
+};
 
-
-//#define DOOR_OPEN 1
-//#define DOOR_CLOSED 0
+const DEVICE_TMPLT devices[4] =  {
+  {
+      "Sonoff Basic",     
+      GPIO12,
+      GPIO13
+  },
+  {
+      "Sonoff Socket",     
+      GPIO14,
+      GPIO13
+  },
+  {
+      "Sonoff Dual R2",     
+      GPIO14,
+      GPIO13
+  },
+  {
+      "KS602S Switch",     
+      GPIO12,
+      GPIO13
+  }
+};
 
 #endif

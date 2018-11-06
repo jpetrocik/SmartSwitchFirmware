@@ -11,6 +11,10 @@
 #include <ESP8266mDNS.h>
 #include <PubSubClient.h>
 
+#include <WiFiClient.h>
+#include <ESP8266WebServer.h>
+
+#include "configuration.h"
 #include "devices.h"
 
 Ticker ticker;
@@ -24,6 +28,7 @@ char mqttServer[50] = "mqtt.local";
 char hostname[41];
 char commandTopic[70];
 char statusTopic[70];
+
 
 //set when AP mode is enabled to indicating the
 //config data needs to be saved
@@ -40,27 +45,22 @@ void setup() {
   pinMode(RELAY, OUTPUT);
   pinMode(DOOR_STATUS, INPUT);
 
+
   //slow ticker when starting up
   //switch to fast tick when in AP mode
   ticker.attach(0.6, tick);
 
-  configLoad();
-
   wifiSetup();
 
-  if (shouldSaveConfig) {
-    configSave();
-  }
-
-  mdnsInit();
+  mdnsSetup();
 
   ticker.detach();
   
   //init over the air update server
-  otaInit();
+  otaSetup();
 
   //connect to mqtt servier
-  mqttInit();
+  mqttSetup();
 
   const char version[] = "v1.0-beta" __DATE__ " " __TIME__;
   Serial.println("SmartGarage Firmware");
@@ -87,6 +87,8 @@ void loop() {
   //Check for OTA Updates
   ArduinoOTA.handle();
 
+
+  webServerLoop();
 }
 
 void openDoor() {
@@ -114,6 +116,7 @@ void sendCurrentDoorStatus() {
   sprintf (jsonStatusMsg, "{\"status\":%s}", doorState ? "\"OFF\"" : "\"ON\"");
     
   mqClient.publish((char *)statusTopic, (char *)jsonStatusMsg);
+
 }
 
 void sendDoorStatusOnChange() {
@@ -182,11 +185,16 @@ void configSave() {
     json["device"] = deviceName;
     json["location"] = locationName;
     json["mqttServer"] = mqttServer;
+    json.set("relay",relayPin);
+    json.set("led",ledPin);
+    json.set("button",buttonPin);
+    json.set("maxOnTimer",maxOnTimer);
     sprintf (hostname, "%s-%s", locationName, deviceName);
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (configFile) {
       Serial.println("Saving config data....");
+      json.prettyPrintTo(Serial);
       json.printTo(configFile);
       configFile.close();
     }
@@ -208,10 +216,40 @@ void configLoad() {
         DynamicJsonBuffer jsonBuffer;
         JsonObject& json = jsonBuffer.parseObject(buf.get());
         if (json.success()) {
-          strncpy(deviceName, json["device"], 20);
-          strncpy(locationName, json["location"], 20);
-          strncpy(mqttServer, json["mqttServer"], 50);
+          json.prettyPrintTo(Serial);
+
+          if (json.containsKey("device")) {
+            strncpy(deviceName, json["device"], 20);
+          } 
+                 
+          if (json.containsKey("location")) {
+            strncpy(locationName, json["location"], 20);
+          }
+
           sprintf (hostname, "%s-%s", locationName, deviceName);
+
+          if (json.containsKey("mqttServer")) {
+            strncpy(mqttServer, json["mqttServer"], 50);
+          } else {
+            mqttServer[0]=0;
+          }
+          
+          if (json.containsKey("relay")) {
+            relayPin = json.get<signed int>("relay");
+          }
+            
+          if (json.containsKey("led")) {
+            ledPin = json.get<signed int>("led");
+          }
+
+          if (json.containsKey("button")) {
+            buttonPin = json.get<signed int>("button");
+          }
+
+          if (json.containsKey("maxOnTimer")) {
+            maxOnTimer = json.get<signed int>("maxOnTimer");
+          }
+          
 
         }
       }
@@ -220,48 +258,8 @@ void configLoad() {
 }
 
 
-/******************************************
- * MQTT
- ******************************************/
-void mqttInit() {
-  Serial.println("Connecting to MQTT Server....");
-  mqClient.setServer(mqttServer, 1883);
-  mqClient.setCallback(mqttCallback);
-
-  sprintf (commandTopic, "house/%s/%s/command", locationName, deviceName);
-  sprintf (statusTopic, "house/%s/%s/status", locationName, deviceName);
-}
-
-int reconnectAttemptCounter = 0;
-long nextReconnectAttempt = 0;
-void mqttConnect() {
-  if(!mqClient.connected() && nextReconnectAttempt < millis() ) {
-    
-    if (mqClient.connect(hostname)) {
-      Serial.println("connected");
-      mqClient.subscribe(commandTopic);
-      mqClient.subscribe("house/command");
-      
-      reconnectAttemptCounter = 0;
-      nextReconnectAttempt=0;
-      
-    } else {
-      Serial.print("Failed to connect to ");
-      Serial.println(mqttServer);
 
 
-      reconnectAttemptCounter++;
-      nextReconnectAttempt = sq(reconnectAttemptCounter) * 1000;
-      if (nextReconnectAttempt > 30000) nextReconnectAttempt = 30000;
-      
-      Serial.print("Will reattempt to connect in ");
-      Serial.print(nextReconnectAttempt);
-      Serial.println(" seconds");
-
-      nextReconnectAttempt += millis();
-    }
-  }
-}
 
 //callback when a mqtt message is recieved
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
@@ -275,39 +273,4 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 
-/******************************************
- * Arduino OTA
- ******************************************/
-void otaInit() { 
-  Serial.println("Enabling OTA Updates");
-
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-
-  ArduinoOTA.setHostname(hostname);
-
-  // No authentication by default
-  // ArduinoOTA.setPassword((const char *)"123");
-
-  ArduinoOTA.onStart([]() {
-    ticker.attach(0.6, tick);
-    Serial.println("OTA Update Start....");
-  });
-  ArduinoOTA.onEnd([]() {
-    ticker.attach(0.2, tick);
-    Serial.println("\nOTA Update Finished");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  ArduinoOTA.begin();
-}
 
