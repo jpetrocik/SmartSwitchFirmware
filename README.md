@@ -53,7 +53,7 @@ curl -X POST "http://[ip address]/restart"
 
 ## MQTT
 
-The device will subscribe to a command and status topic.  The device will subscribe to the command topic and publish status updates to the status topic.  The topic a based on the name and location you configured.
+The device will subscribe to a command and status topic.  The device will subscribe to the command topic and publish status updates to the status topic.  The topics names are based on the name and location you configured.
 
 The commands to publish to MQTT to control the device are simple numeric commands: 
 
