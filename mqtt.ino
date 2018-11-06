@@ -71,7 +71,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void mqttSendStatus() {
-    if (!_mqClient.connected()) {
+    if (_mqClient.connected()) {
       _mqClient.publish((char *)_statusTopic, (char *)jsonStatusMsg);
     }
 }

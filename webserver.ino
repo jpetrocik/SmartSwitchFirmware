@@ -8,11 +8,9 @@ void webServerSetup() {
    server.on("/off", handleTurnOff); 
    server.on("/toggle", handleToggle); 
    server.on("/restart", HTTP_POST, handleRestart); 
-   server.on("/factoryreset", HTTP_POST, handleToggle); 
-   server.on("/debug", handleDebug); 
-   
-   server.on("/device", HTTP_PUT, handleConfigureDevice); 
-   server.on("/mqtt", HTTP_PUT, handleConfigureMqtt); 
+   server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
+   server.on("/config", HTTP_GET, handleDebug); 
+   server.on("/config", HTTP_PUT, handleConfigureDevice); 
 
    server.begin();
 }
@@ -41,8 +39,9 @@ void handleStatus() {
 }
 
 void handleRestart() {
+  server.send(200, "application/json",  "{\"message\":\"Restarting\"}");
+  delay(1000);
   ESP.restart();
-  server.send(200, "application/json",  "");
 }
 
 void handleDebug() {
@@ -66,13 +65,14 @@ void handleDebug() {
       }
     }
   }
-  server.send(404, "application/json",  "");
+  server.send(200, "application/json",  "{}");
 
 }
 
 void handleFactoryReset() {
   factoryReset();
-  server.send(200, "application/json",  "");
+  delay(1000);
+  server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
 }
 
 void handleConfigureDevice() {
@@ -87,31 +87,20 @@ void handleConfigureDevice() {
       argValue.toCharArray(locationName, 20);
     } else if (argName == "relay"){
       relayPin = argValue.toInt();
+    } else if (argName == "maxOnTimer"){
+      maxOnTimer = argValue.toInt();
     } else if (argName == "led"){
       ledPin = argValue.toInt();
     } else if (argName == "button"){
       buttonPin = argValue.toInt();
-    }
-  }
-
-  configSave();
-  
-  server.send(200, "application/json",  "");
-}
-
-void handleConfigureMqtt() {
-  int argCount = server.args();
-  for (int i=0; i<argCount; i++){
-    String argName = server.argName(i);
-    String argValue = server.arg(i);
-
-    if (argName == "server") {
+    } else if (argName == "server") {
       argValue.toCharArray(mqttServer, 50);
     }
+
   }
 
   configSave();
-  
-  server.send(200, "application/json",  "");
+
+  handleDebug();
 }
 

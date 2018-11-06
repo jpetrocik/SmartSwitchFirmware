@@ -6,9 +6,13 @@ void wifiSetup() {
   Serial.println("Setting up wifi connection....");
   WiFiManager wifiManager;
 
+  wifiManager.setConfigPortalTimeout(300);
   wifiManager.setDebugOutput(false);
   wifiManager.setAPCallback(wifiConfigModeCallback);
-  wifiManager.autoConnect("SmartSwitch");//-" + ESP.getChipId());
+  if (!wifiManager.autoConnect("SmartSwitch")) { //-" + ESP.getChipId())) {
+    Serial.println("Failed to connect, trying again...");
+    ESP.restart();
+  }
 
 }
 

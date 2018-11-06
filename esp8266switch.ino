@@ -33,7 +33,7 @@ char deviceName[20] = "light";
 char locationName[20] = "bedroom";
 char hostname[41] = "light-bedroom";
 char mqttServer[50];
-int relayPin = GPIO14;
+int relayPin = GPIO12;
 int ledPin = GPIO13;
 int buttonPin = GPIO00;
 int maxOnTimer = 0;
