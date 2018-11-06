@@ -55,6 +55,13 @@ curl -X POST "http://[ip address]/restart"
 
 The device will subscribe to a command and status topic.  The device will subscribe to the command topic and publish status updates to the status topic.  The topic a based on the name and location you configured.
 
+The commands to publish to MQTT to control the device are simple numeric commands: 
+
+* 0 - Turn Off
+* 1 - Turn On
+* 2 - Toggle 
+* 3 - Status
+
 Command Topic:
 house/[location]/[name]/command
 
@@ -67,9 +74,4 @@ mosquitto_pub -t house/outside/landscaping/command -m '3'
 
 This will cause the device to publish a status message to the status topic
 
-MQTT message:
-
-0 - Turn Off
-1 - Turn On
-2 - Toggle 
-3 - Status
+mosquitto_sub -t house/outside/landscaping/status
