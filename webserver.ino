@@ -4,13 +4,11 @@ ESP8266WebServer server(80);
 void webServerSetup() {
   Serial.println("Starting web server on port 80");
    server.on("/", handleStatus); 
-   server.on("/on", handleTurnOn); 
-   server.on("/off", handleTurnOff); 
-   server.on("/toggle", handleToggle); 
+   server.on("/door", handleDoor); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
-   server.on("/config", HTTP_GET, handleDebug); 
-   server.on("/config", HTTP_PUT, handleConfigureDevice); 
+   server.on("/config", HTTP_GET, handleConfigureDevice); 
+   server.on("/config", HTTP_PUT, handleSaveConfigureDevice); 
 
    server.begin();
 }
@@ -19,18 +17,8 @@ void webServerLoop() {
   server.handleClient();
 }
 
-void handleTurnOn() {
-  turnOn();
-  server.send(200, "application/json",  (char *)jsonStatusMsg);
-}
-
-void handleTurnOff() {
-  turnOff();
-  server.send(200, "application/json",  (char *)jsonStatusMsg);
-}
-
-void handleToggle() {
-  toogle();
+void handleDoor() {
+  toogleDoor();
   server.send(200, "application/json",  (char *)jsonStatusMsg);
 }
 
@@ -44,7 +32,13 @@ void handleRestart() {
   ESP.restart();
 }
 
-void handleDebug() {
+void handleFactoryReset() {
+  server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
+  delay(1000);
+  factoryReset();
+}
+
+void handleConfigureDevice() {
   Serial.println("Loading config data....");
   if (SPIFFS.exists("/config.json")) {
     //file exists, reading and loading
@@ -69,13 +63,7 @@ void handleDebug() {
 
 }
 
-void handleFactoryReset() {
-  factoryReset();
-  delay(1000);
-  server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
-}
-
-void handleConfigureDevice() {
+void handleSaveConfigureDevice() {
   int argCount = server.args();
   for (int i=0; i<argCount; i++){
     String argName = server.argName(i);
@@ -85,14 +73,6 @@ void handleConfigureDevice() {
       argValue.toCharArray(deviceName, 20);
     } else if (argName == "location"){
       argValue.toCharArray(locationName, 20);
-    } else if (argName == "relay"){
-      relayPin = argValue.toInt();
-    } else if (argName == "maxOnTimer"){
-      maxOnTimer = argValue.toInt();
-    } else if (argName == "led"){
-      ledPin = argValue.toInt();
-    } else if (argName == "button"){
-      buttonPin = argValue.toInt();
     } else if (argName == "server") {
       argValue.toCharArray(mqttServer, 50);
     }
@@ -101,6 +81,6 @@ void handleConfigureDevice() {
 
   configSave();
 
-  handleDebug();
+  handleConfigureDevice();
 }
 
