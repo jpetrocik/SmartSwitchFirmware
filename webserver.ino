@@ -3,8 +3,8 @@ ESP8266WebServer server(80);
 
 void webServerSetup() {
   Serial.println("Starting web server on port 80");
-   server.on("/", handleStatus); 
-   server.on("/door", handleDoor); 
+//   server.on("/", handleStatus); 
+//   server.on("/door", handleDoor); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
    server.on("/config", HTTP_GET, handleConfigureDevice); 
@@ -69,14 +69,9 @@ void handleSaveConfigureDevice() {
     String argName = server.argName(i);
     String argValue = server.arg(i);
 
-    if (argName == "name") {
+    if (argName == "deviceName") {
       argValue.toCharArray(deviceName, 20);
-    } else if (argName == "location"){
-      argValue.toCharArray(locationName, 20);
-    } else if (argName == "server") {
-      argValue.toCharArray(mqttServer, 50);
-    }
-
+    } 
   }
 
   configSave();

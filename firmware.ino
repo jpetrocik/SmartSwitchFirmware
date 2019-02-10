@@ -23,10 +23,10 @@ int lastKnownDoorStatus = -1;
 char jsonStatusMsg[140];
 
 //configuration properties
-char deviceName[20] = "door";
-char locationName[20] = "garage";
-char mqttServer[50] = "mqtt.local";
-char hostname[41];
+char deviceName[20] = "Garage Door";
+char hostname[20] = "garage_door";
+char deviceToken[40];
+char registeredPhone[15];
 char commandTopic[70];
 char statusTopic[70];
 
@@ -46,8 +46,8 @@ void setup() {
 
   wifiSetup();
 
-  mdnsSetup();
-
+//  mdnsSetup();
+  
   otaSetup();
   
   mqttSetup();
@@ -58,13 +58,15 @@ void setup() {
   
   Serial.println("SmartGarage Firmware");
   Serial.println(__DATE__ " " __TIME__);
-  Serial.println(hostname);
+  Serial.println(deviceToken);
 
   lastKnownDoorStatus = digitalRead(DOOR_STATUS);
   digitalWrite(ONBOARD_LED, !lastKnownDoorStatus);
+
 }
 
 void loop() {
+  
   mqttLoop();
 
   otaLoop();
@@ -116,10 +118,10 @@ void tick() {
 void configSave() {
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
-    json["device"] = deviceName;
-    json["location"] = locationName;
-    json["mqttServer"] = mqttServer;
-    sprintf (hostname, "%s-%s", locationName, deviceName);
+    json["deviceName"] = deviceName;
+    json["registeredPhone"] = registeredPhone;
+    if (strlen(deviceToken) >= 20)
+      json["deviceToken"] = deviceToken;
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (configFile) {
@@ -148,21 +150,17 @@ void configLoad() {
         if (json.success()) {
           json.prettyPrintTo(Serial);
 
-          if (json.containsKey("device")) {
-            strncpy(deviceName, json["device"], 20);
+          if (json.containsKey("deviceToken")) {
+            strncpy(deviceToken, json["deviceToken"], 40);
           } 
                  
-          if (json.containsKey("location")) {
-            strncpy(locationName, json["location"], 20);
-          }
+          if (json.containsKey("deviceName")) {
+            strncpy(deviceName, json["deviceName"], 20);
+          } 
 
-          sprintf (hostname, "%s-%s", locationName, deviceName);
-
-          if (json.containsKey("mqttServer")) {
-            strncpy(mqttServer, json["mqttServer"], 50);
-          } else {
-            mqttServer[0]=0;
-          }
+          if (json.containsKey("registeredPhone")) {
+            strncpy(registeredPhone, json["registeredPhone"], 15);
+          } 
         }
       }
     }
