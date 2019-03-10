@@ -13,19 +13,26 @@
 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <Bounce2.h>
 
 #include "configuration.h"
+#include "settings.h"
 
 Ticker ticker;
 
-int lastKnownDoorStatus = -1;
+Bounce doorSwitch = Bounce();
 
 char jsonStatusMsg[140];
 
 //configuration properties
+char mqttServer[150] = MQTT_SERVER;
+char mqttUsername[150] = MQTT_USER;
+char mqttPassword[150] = MQTT_PASSWORD;
+int mqttServerPort = MQTT_PORT;
+
 char deviceName[20] = "Garage Door";
 char hostname[20] = "garage_door";
-char deviceToken[40];
+char deviceToken[40] = "";
 char registeredPhone[15];
 char commandTopic[70];
 char statusTopic[70];
@@ -35,8 +42,12 @@ void setup() {
 
   pinMode(ONBOARD_LED, OUTPUT);
   pinMode(RELAY, OUTPUT);
-  pinMode(DOOR_STATUS, INPUT);
 
+  //setup pin read with bounce protection
+  doorSwitch.attach(DOOR_PIN, INPUT); 
+  doorSwitch.interval(250);
+
+  sprintf (hostname, "garage_%08X", ESP.getChipId());
 
   //slow ticker when starting up
   //switch to fast tick when in AP mode
@@ -46,27 +57,24 @@ void setup() {
 
   wifiSetup();
 
-//  mdnsSetup();
-  
+  //  mdnsSetup();
+
   otaSetup();
-  
+
   mqttSetup();
 
   webServerSetup();
 
   ticker.detach();
-  
+
   Serial.println("SmartGarage Firmware");
   Serial.println(__DATE__ " " __TIME__);
   Serial.println(deviceToken);
 
-  lastKnownDoorStatus = digitalRead(DOOR_STATUS);
-  digitalWrite(ONBOARD_LED, !lastKnownDoorStatus);
-
 }
 
 void loop() {
-  
+
   mqttLoop();
 
   otaLoop();
@@ -76,35 +84,47 @@ void loop() {
   sendDoorStatusOnChange();
 }
 
-void toogleDoor(){
+void toogleDoor() {
   digitalWrite(RELAY, HIGH);
   delay(500);
   digitalWrite(RELAY, LOW);
 }
 
 void sendCurrentDoorStatus() {
-  int doorState = !digitalRead(DOOR_STATUS);
+  int doorState = !doorSwitch.read();
   sprintf (jsonStatusMsg, "{\"status\":%s}", doorState ? "\"OFF\"" : "\"ON\"");
 
-  mqttSendStatus();
+  mqttSendMsg(jsonStatusMsg);
 }
 
-void sendDoorStatusOnChange() {
-  int doorStatus = digitalRead(DOOR_STATUS);
+void sendCurrentAddress() {
+  char msg[100];
+  int ipAddress = WiFi.localIP();
+  sprintf (msg, "{\"address\":%s}", ipAddress);
 
-  if (doorStatus != lastKnownDoorStatus) {
+  mqttSendMsg(msg);
+}
+
+
+void sendDoorStatusOnChange() {
+  boolean changed = doorSwitch.update();
+
+  //if the button state has changed, record when and current state
+  if (changed) {
     sendCurrentDoorStatus();
-    lastKnownDoorStatus = doorStatus;
-    digitalWrite(ONBOARD_LED, !doorStatus);
+    int doorState = !doorSwitch.read();
+    digitalWrite(ONBOARD_LED, doorState);
   }
+
 }
 
 void factoryReset() {
   Serial.println("Restoring Factory Setting....");
   WiFi.disconnect();
   SPIFFS.format();
-  delay(500);
+  ESP.eraseConfig();
   Serial.println("Restarting....");
+  delay(500);
   ESP.restart();
 }
 
@@ -116,20 +136,26 @@ void tick() {
 //Called to save the configuration data after
 //the device goes into AP mode for configuration
 void configSave() {
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
-    json["deviceName"] = deviceName;
-    json["registeredPhone"] = registeredPhone;
-    if (strlen(deviceToken) >= 20)
-      json["deviceToken"] = deviceToken;
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+  json["deviceName"] = deviceName;
+  json["registeredPhone"] = registeredPhone;
+  //  json["mqttServer"] = mqttServer;
+  //  json["mqttUsername"] = mqttUsername;
+  //  json["mqttPassword"] = mqttPassword;
+  //  json.set("mqttServerPort", mqttServerPort);
 
-    File configFile = SPIFFS.open("/config.json", "w");
-    if (configFile) {
-      Serial.println("Saving config data....");
-      json.prettyPrintTo(Serial);
-      json.printTo(configFile);
-      configFile.close();
-    }
+  if (strlen(deviceToken) >= 20)
+    json["deviceToken"] = deviceToken;
+
+  File configFile = SPIFFS.open("/config.json", "w");
+  if (configFile) {
+    Serial.println("Saving config data....");
+    json.prettyPrintTo(Serial);
+    Serial.println();
+    json.printTo(configFile);
+    configFile.close();
+  }
 }
 
 //Loads the configuration data on start up
@@ -152,15 +178,31 @@ void configLoad() {
 
           if (json.containsKey("deviceToken")) {
             strncpy(deviceToken, json["deviceToken"], 40);
-          } 
-                 
+          }
+
           if (json.containsKey("deviceName")) {
             strncpy(deviceName, json["deviceName"], 20);
-          } 
+          }
 
           if (json.containsKey("registeredPhone")) {
             strncpy(registeredPhone, json["registeredPhone"], 15);
-          } 
+          }
+
+          //          if (json.containsKey("mqttServer")) {
+          //            strncpy(mqttServer, json["mqttServer"], 150);
+          //          }
+          //
+          //          if (json.containsKey("mqttUsername")) {
+          //            strncpy(mqttUsername, json["mqttUsername"], 150);
+          //          }
+          //
+          //          if (json.containsKey("mqttPassword")) {
+          //            strncpy(mqttPassword, json["mqttPassword"], 150);
+          //          }
+          //
+          //          if (json.containsKey("mqttServerPort")) {
+          //            mqttServerPort = json.get<signed int>("mqttServerPort");
+          //          }
         }
       }
     }

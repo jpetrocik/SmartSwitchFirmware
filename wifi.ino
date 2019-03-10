@@ -7,9 +7,9 @@ void wifiSetup() {
   Serial.println("Setting up wifi connection....");
   WiFiManager wifiManager;
 
-  WiFiManagerParameter custom_registered_phone("registered_phone", "Mobile Phone", registeredPhone, 40);
+  WiFiManagerParameter custom_registered_phone("registered_phone", "Mobile Phone", registeredPhone, 15, "required type=\"tel\" pattern=\"[0-9]{11}\" placeholder=\"15625551234\" required title=\"Please enter a valid phone number, e.g. 15625551234\"");
   wifiManager.addParameter(&custom_registered_phone);
-  WiFiManagerParameter custom_device_name("device_name", "Device Name", deviceName, 50);
+  WiFiManagerParameter custom_device_name("device_name", "Device Name", deviceName, 20, "required");
   wifiManager.addParameter(&custom_device_name);
   
   wifiManager.setConfigPortalTimeout(300);
@@ -21,10 +21,9 @@ void wifiSetup() {
     ESP.restart();
   }
 
-  strncpy(registeredPhone, custom_registered_phone.getValue(),40);
-  strncpy(deviceName, custom_device_name.getValue(),40);
-
   if (shouldSaveConfig) {
+    strncpy(registeredPhone, custom_registered_phone.getValue(), 15);
+    strncpy(deviceName, custom_device_name.getValue(), 20);
     configSave();
   }
 

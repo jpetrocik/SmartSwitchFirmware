@@ -71,6 +71,14 @@ void handleSaveConfigureDevice() {
 
     if (argName == "deviceName") {
       argValue.toCharArray(deviceName, 20);
+    } else if (argName == "mqttServer") {
+      argValue.toCharArray(mqttServer, 150);
+    } else if (argName == "mqttUsername") {
+      argValue.toCharArray(mqttUsername, 150);
+    } else if (argName == "mqttPassword") {
+      argValue.toCharArray(mqttPassword, 150);
+    } else if (argName == "mqttServerPort") {
+      mqttServerPort = argValue.toInt();
     } 
   }
 
