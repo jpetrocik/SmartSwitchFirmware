@@ -21,8 +21,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       toogleDoor();
     } else if ((char)payload[0] == '3') {
       sendCurrentDoorStatus();
-    } else if ((char)payload[0] == 'A') {
-      sendCurrentAddress();
     }
   } else if (strcmp(topic, _regTopic) == 0) {
     Serial.println("Device registered");
@@ -34,11 +32,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void mqttSetup() {
-  //load cert to connect to server
-  //_espClient.setCertificate (ca_bin_crt, ca_bin_crt_len);
-
-  //  _mqClient.setServer(MQTT_SERVER, MQTT_PORT);
-  //  _mqClient.setCallback(mqttCallback);
+  _espClient.setInsecure(); 
 }
 
 void mqttLoop() {
@@ -108,15 +102,14 @@ void mqttRegister() {
   mqttGenerateRegistrationTopic();
 
   //construct json messaage
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
-  json["name"] = deviceName;
-  json["phone"] = registeredPhone;
-  json["regToken"] = _regToken;
+  DynamicJsonDocument jsonDoc(250);
+  jsonDoc["name"] = deviceName;
+  jsonDoc["phone"] = registeredPhone;
+  jsonDoc["regToken"] = _regToken;
 
   //send message
-  char message[100];
-  json.printTo(message, sizeof(message));
+  char message[250];
+  serializeJson(jsonDoc, message);
 
   _mqClient.publish("garage/register", message);
 }

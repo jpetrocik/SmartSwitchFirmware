@@ -45,7 +45,7 @@ void setup() {
 
   //setup pin read with bounce protection
   doorSwitch.attach(DOOR_PIN, INPUT); 
-  doorSwitch.interval(250);
+  doorSwitch.interval(1000);
 
   sprintf (hostname, "garage_%08X", ESP.getChipId());
 
@@ -57,7 +57,7 @@ void setup() {
 
   wifiSetup();
 
-  //  mdnsSetup();
+  mdnsSetup();
 
   otaSetup();
 
@@ -97,15 +97,6 @@ void sendCurrentDoorStatus() {
   mqttSendMsg(jsonStatusMsg);
 }
 
-void sendCurrentAddress() {
-  char msg[100];
-  int ipAddress = WiFi.localIP();
-  sprintf (msg, "{\"address\":%s}", ipAddress);
-
-  mqttSendMsg(msg);
-}
-
-
 void sendDoorStatusOnChange() {
   boolean changed = doorSwitch.update();
 
@@ -136,8 +127,8 @@ void tick() {
 //Called to save the configuration data after
 //the device goes into AP mode for configuration
 void configSave() {
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
+  DynamicJsonDocument doc(1024);
+  JsonObject json = doc.to<JsonObject>();
   json["deviceName"] = deviceName;
   json["registeredPhone"] = registeredPhone;
   //  json["mqttServer"] = mqttServer;
@@ -151,9 +142,9 @@ void configSave() {
   File configFile = SPIFFS.open("/config.json", "w");
   if (configFile) {
     Serial.println("Saving config data....");
-    json.prettyPrintTo(Serial);
+    serializeJson(json, Serial);
     Serial.println();
-    json.printTo(configFile);
+    serializeJson(json, configFile);
     configFile.close();
   }
 }
@@ -171,39 +162,38 @@ void configLoad() {
 
         configFile.readBytes(buf.get(), size);
 
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        if (json.success()) {
-          json.prettyPrintTo(Serial);
+        DynamicJsonDocument jsonDoc(1024);
+        DeserializationError error = deserializeJson(jsonDoc, buf.get());
+        serializeJsonPretty(jsonDoc, Serial);
 
-          if (json.containsKey("deviceToken")) {
-            strncpy(deviceToken, json["deviceToken"], 40);
-          }
-
-          if (json.containsKey("deviceName")) {
-            strncpy(deviceName, json["deviceName"], 20);
-          }
-
-          if (json.containsKey("registeredPhone")) {
-            strncpy(registeredPhone, json["registeredPhone"], 15);
-          }
-
-          //          if (json.containsKey("mqttServer")) {
-          //            strncpy(mqttServer, json["mqttServer"], 150);
-          //          }
-          //
-          //          if (json.containsKey("mqttUsername")) {
-          //            strncpy(mqttUsername, json["mqttUsername"], 150);
-          //          }
-          //
-          //          if (json.containsKey("mqttPassword")) {
-          //            strncpy(mqttPassword, json["mqttPassword"], 150);
-          //          }
-          //
-          //          if (json.containsKey("mqttServerPort")) {
-          //            mqttServerPort = json.get<signed int>("mqttServerPort");
-          //          }
+        JsonObject json = jsonDoc.as<JsonObject>();
+        if (json.containsKey("deviceToken")) {
+          strncpy(deviceToken, json["deviceToken"], 40);
         }
+
+        if (json.containsKey("deviceName")) {
+          strncpy(deviceName, json["deviceName"], 20);
+        }
+
+        if (json.containsKey("registeredPhone")) {
+          strncpy(registeredPhone, json["registeredPhone"], 15);
+        }
+
+//        if (json.containsKey("mqttServer")) {
+//          strncpy(mqttServer, json["mqttServer"], 150);
+//        }
+//
+//        if (json.containsKey("mqttUsername")) {
+//          strncpy(mqttUsername, json["mqttUsername"], 150);
+//        }
+//
+//        if (json.containsKey("mqttPassword")) {
+//          strncpy(mqttPassword, json["mqttPassword"], 150);
+//        }
+//
+//        if (json.containsKey("mqttServerPort")) {
+//          mqttServerPort = json.get<signed int>("mqttServerPort");
+//        }
       }
     }
   }

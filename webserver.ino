@@ -49,11 +49,12 @@ void handleConfigureDevice() {
 
       configFile.readBytes(buf.get(), size);
 
-      DynamicJsonBuffer jsonBuffer;
-      JsonObject& json = jsonBuffer.parseObject(buf.get());
-      if (json.success()) {
+      DynamicJsonDocument json(1024);
+      DeserializationError error = deserializeJson(json, buf.get());
+
+      if (!error) {
         String result;
-        json.prettyPrintTo(result);
+        serializeJsonPretty(json, result);
         server.send(200, "application/json",  result);
         return;
       }
