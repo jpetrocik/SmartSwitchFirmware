@@ -13,6 +13,7 @@
 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <Bounce2.h>
 
 #include "configuration.h"
 #include "devices.h"
@@ -22,20 +23,17 @@ Ticker ticker;
 //current status of relay
 int relayState = RELAY_OFF;
 
-//maintains when the button was pressed
-//action is taken on button release
-//this allows for long press features
-unsigned long buttomPressed = false; //time button was press, so must be unsigned long
-long bounceTimeout = 0;
-
 //configuration properties
-char deviceName[20] = "light";
-char locationName[20] = "bedroom";
-char hostname[41] = "light-bedroom";
+char deviceName[20] = "fan";
+char locationName[20] = "hallway";
+char hostname[41] = "fan-hallway";
 char mqttServer[50];
-int relayPin = GPIO12;
-int ledPin = GPIO13;
-int buttonPin = GPIO00;
+
+int highRelayPin = 13;
+int lowRelayPin = 15;
+int highButtonPin = 12;
+int lowButtonPin = 5;
+int offButtonPin = 3;
 int maxOnTimer = 0;
 
 //set when AP mode is enabled to indicating the
@@ -48,21 +46,38 @@ long delayOffTime = 0;
 //contains last json status message
 char jsonStatusMsg[140];
 
+Bounce highSwitch = Bounce();
+Bounce lowSwitch = Bounce();
+Bounce offSwitch = Bounce();
+
 void setup() {
   Serial.begin(115200);
 
   configLoad();
 
-  Serial.println("SmartHome Firmware");
+  Serial.println("SmartSwitch Firmware");
   Serial.println(__DATE__ " " __TIME__);
   Serial.println(hostname);
 
-  pinMode(ledPin, OUTPUT);
-  pinMode(relayPin, OUTPUT);
-  pinMode(buttonPin, INPUT);
+  pinMode(highRelayPin, OUTPUT);
+  pinMode(lowRelayPin, OUTPUT);
 
-  digitalWrite(relayPin, RELAY_OFF);
+  digitalWrite(highRelayPin, RELAY_OFF);
+  digitalWrite(lowRelayPin, RELAY_OFF);
 
+  pinMode(highButtonPin, INPUT_PULLUP);
+  pinMode(lowButtonPin, INPUT_PULLUP);
+  pinMode(offButtonPin, INPUT_PULLUP);
+
+  highSwitch.attach(highButtonPin);
+  highSwitch.interval(5);
+
+  lowSwitch.attach(lowButtonPin);
+  lowSwitch.interval(5);
+  
+  offSwitch.attach(offButtonPin);
+  offSwitch.interval(5);
+  
   //slow ticker when starting up
   //switch to fast tick when in AP mode
   ticker.attach(0.6, tick);
@@ -81,7 +96,6 @@ void setup() {
 
   webServerSetup();
 
-  digitalWrite(ledPin, LED_OFF);
 }
 
 void loop() {
@@ -93,42 +107,22 @@ void loop() {
     turnOff();
   }
 
-  //action is taken when button is released. any
-  //button pressed within 100ms is consider a bounce and
-  //ignored.
-  //
-  //<1.5sec: toggle relay
-  //>1.5: delay off sec * minutes
-  if (now - bounceTimeout  > 100 ) {
+  highSwitch.update();
+  lowSwitch.update();
+  offSwitch.update();
+  
+  if (highSwitch.fell()) {
+      Serial.println("High button pressed....");
+      turnOnHigh();
 
-    //button initially pressed
-    if (!digitalRead(buttonPin) && !buttomPressed) {
-      Serial.println("Button pressed....");
-      buttomPressed = now;
-      bounceTimeout = now;
-      toogle();
+  } else if (lowSwitch.fell()) {
+      Serial.println("Low button pressed....");
+      turnOnLow();
 
-    //button is released  
-    } else if (digitalRead(buttonPin) && buttomPressed) {
-      Serial.println("Button released....");
-       
-      //delayed off timer
-      if ((now - buttomPressed > 1000) && (relayState == RELAY_ON)) {
-        delayOffTime = (now - buttomPressed) * 60;
-        Serial.print("Delay timer set for ");
-        Serial.println(delayOffTime);
-        delayOffTime += now; 
-      } 
-      
-      buttomPressed = false;
-      bounceTimeout = now;
+  } else if (offSwitch.fell()) {
+      Serial.println("Off button pressed....");
+      turnOff();
 
-    //after 30sec perfrom factory reset
-    } else if (buttomPressed && (now - buttomPressed) > 30000 ) {
-        ticker.attach(0.2, tick);
-        delay(5000);
-        factoryReset();
-    }
   }
 
   mqttLoop();
@@ -138,19 +132,23 @@ void loop() {
   webServerLoop();
 }
 
-void toogle() {
-  if (relayState == RELAY_ON) {
-    turnOff();
-  } else {
-    turnOn();
-  }
+void turnOnHigh() {
+  turnOnSafely(highRelayPin);
 }
 
-void turnOn() {
-  digitalWrite(relayPin, RELAY_ON);
-  digitalWrite(ledPin, LED_ON);
-  relayState = RELAY_ON;
+void turnOnLow() {
+  turnOnSafely(lowRelayPin);
+}
 
+void turnOnSafely(int relayPin) {
+
+  //if changing between high or low, first turn off the relay and wait to ensure relay turns off
+  turnOffQuitely();
+  delay(50);
+
+  digitalWrite(relayPin, RELAY_ON);
+  relayState = RELAY_ON;
+  
   //cancel delayTimer
   delayOffTime = 0;
 
@@ -163,14 +161,18 @@ void turnOn() {
 }
 
 void turnOff() {
-  digitalWrite(relayPin, RELAY_OFF);
-  digitalWrite(ledPin, LED_OFF);
+  turnOffQuitely();
+  sendCurrentStatus();
+}
+
+void turnOffQuitely() {
+  digitalWrite(highRelayPin, RELAY_OFF);
+  digitalWrite(lowRelayPin, RELAY_OFF);
   relayState = RELAY_OFF;
 
   //reset or cancel delayTimer
   delayOffTime = 0;
 
-  sendCurrentStatus();
 }
 
 void sendCurrentStatus() {
@@ -190,29 +192,34 @@ void factoryReset() {
 }
 
 void tick() {
-  int state = digitalRead(ledPin);
-  digitalWrite(ledPin, !state);
+  //there is no available led to control, they are connected directly to the relay
+  //int state = digitalRead(ledPin);
+  //digitalWrite(ledPin, !state);
 }
 
 //Called to save the configuration data after
 //the device goes into AP mode for configuration
 void configSave() {
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
+  DynamicJsonDocument jsonDoc(1024);
+  JsonObject json = jsonDoc.to<JsonObject>();
+
     json["device"] = deviceName;
     json["location"] = locationName;
     json["mqttServer"] = mqttServer;
-    json.set("relay",relayPin);
-    json.set("led",ledPin);
-    json.set("button",buttonPin);
-    json.set("maxOnTimer",maxOnTimer);
+    json["highRelay"] = highRelayPin;
+    json["lowRelay"] = lowRelayPin;
+    json["highButton"] = highButtonPin;
+    json["lowButton"] = lowButtonPin;
+    json["offButton"] = offButtonPin;
+    json["maxOnTimer"] =  maxOnTimer;
     sprintf (hostname, "%s-%s", locationName, deviceName);
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (configFile) {
       Serial.println("Saving config data....");
-      json.prettyPrintTo(Serial);
-      json.printTo(configFile);
+      serializeJson(json, Serial);
+      Serial.println();
+      serializeJson(json, configFile);
       configFile.close();
     }
 }
@@ -230,11 +237,11 @@ void configLoad() {
 
         configFile.readBytes(buf.get(), size);
 
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        if (json.success()) {
-          json.prettyPrintTo(Serial);
+        DynamicJsonDocument jsonDoc(size);
+        DeserializationError error = deserializeJson(jsonDoc, buf.get());
+        serializeJsonPretty(jsonDoc, Serial);
 
+        JsonObject json = jsonDoc.as<JsonObject>();
           if (json.containsKey("device")) {
             strncpy(deviceName, json["device"], 20);
           } 
@@ -251,24 +258,31 @@ void configLoad() {
             mqttServer[0]=0;
           }
           
-          if (json.containsKey("relay")) {
-            relayPin = json.get<signed int>("relay");
+          if (json.containsKey("highRelay")) {
+            highRelayPin = json["highRelay"];
           }
             
-          if (json.containsKey("led")) {
-            ledPin = json.get<signed int>("led");
+          if (json.containsKey("lowRelay")) {
+            lowRelayPin = json["lowRelay"];
+          }
+          
+          if (json.containsKey("highButton")) {
+            highButtonPin = json["highButton"];
           }
 
-          if (json.containsKey("button")) {
-            buttonPin = json.get<signed int>("button");
+          if (json.containsKey("lowButton")) {
+            lowButtonPin = json["lowButton"];
+          }
+
+          if (json.containsKey("offButton")) {
+            offButtonPin["offButton"];
           }
 
           if (json.containsKey("maxOnTimer")) {
-            maxOnTimer = json.get<signed int>("maxOnTimer");
+            maxOnTimer = json["maxOnTimer"];
           }
           
 
-        }
       }
     }
   }

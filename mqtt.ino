@@ -59,12 +59,12 @@ void mqttConnect() {
 
 //callback when a mqtt message is recieved
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  if ((char)payload[0] == '1') {
-    turnOn();
-  } else if ((char)payload[0] == '0') {
+  if ((char)payload[0] == '0') {
     turnOff();
+  } else if ((char)payload[0] == '1') {
+    turnOnHigh();
   } else if ((char)payload[0] == '2') {
-    toogle();
+    turnOnLow();
   } else if ((char)payload[0] == '3') {
     sendCurrentStatus();
   }
