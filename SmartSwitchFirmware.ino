@@ -112,15 +112,15 @@ void loop() {
   offSwitch.update();
   
   if (highSwitch.fell()) {
-      Serial.println("High button pressed....");
+      mqttSendDebug("High button pressed....");
       turnOnHigh();
 
   } else if (lowSwitch.fell()) {
-      Serial.println("Low button pressed....");
+      mqttSendDebug("Low button pressed....");
       turnOnLow();
 
   } else if (offSwitch.fell()) {
-      Serial.println("Off button pressed....");
+      mqttSendDebug("Off button pressed....");
       turnOff();
 
   }

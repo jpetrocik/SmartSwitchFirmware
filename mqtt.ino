@@ -6,6 +6,7 @@ long _nextReconnectAttempt = 0;
 
 char _commandTopic[70];
 char _statusTopic[70];
+char _debugTopic[70];
 
 void mqttSetup() {
   if(strlen(mqttServer) == 0)
@@ -17,6 +18,7 @@ void mqttSetup() {
 
   sprintf (_commandTopic, "house/%s/%s/command", locationName, deviceName);
   sprintf (_statusTopic, "house/%s/%s/status", locationName, deviceName);
+  sprintf (_debugTopic, "house/%s/%s/debug", locationName, deviceName);
 
 }
 
@@ -73,6 +75,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 void mqttSendStatus() {
     if (_mqClient.connected()) {
       _mqClient.publish((char *)_statusTopic, (char *)jsonStatusMsg);
+    }
+}
+
+void mqttSendDebug(char* msg) {
+    if (_mqClient.connected()) {
+      _mqClient.publish((char *)_debugTopic, msg);
     }
 }
 
