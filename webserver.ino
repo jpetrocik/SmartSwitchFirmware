@@ -9,8 +9,8 @@ void webServerSetup() {
    server.on("/toggle", handleToggle); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
-   server.on("/config", HTTP_GET, handleDebug); 
-   server.on("/config", HTTP_PUT, handleConfigureDevice); 
+   server.on("/config", HTTP_GET, handleConfigureDevice); 
+   server.on("/config", HTTP_PUT, handleSaveConfigureDevice);
 
    server.begin();
 }
@@ -44,7 +44,7 @@ void handleRestart() {
   ESP.restart();
 }
 
-void handleDebug() {
+void handleConfigureDevice() {
   Serial.println("Loading config data....");
   if (SPIFFS.exists("/config.json")) {
     //file exists, reading and loading
@@ -55,11 +55,12 @@ void handleDebug() {
 
       configFile.readBytes(buf.get(), size);
 
-      DynamicJsonBuffer jsonBuffer;
-      JsonObject& json = jsonBuffer.parseObject(buf.get());
-      if (json.success()) {
+      DynamicJsonDocument json(1024);
+      DeserializationError error = deserializeJson(json, buf.get());
+
+      if (!error) {
         String result;
-        json.prettyPrintTo(result);
+        serializeJsonPretty(json, result);
         server.send(200, "application/json",  result);
         return;
       }
@@ -75,7 +76,7 @@ void handleFactoryReset() {
   server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
 }
 
-void handleConfigureDevice() {
+void handleSaveConfigureDevice() {
   int argCount = server.args();
   for (int i=0; i<argCount; i++){
     String argName = server.argName(i);
@@ -101,6 +102,6 @@ void handleConfigureDevice() {
 
   configSave();
 
-  handleDebug();
+  handleConfigureDevice();
 }
 

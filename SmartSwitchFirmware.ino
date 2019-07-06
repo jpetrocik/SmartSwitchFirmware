@@ -88,7 +88,7 @@ void loop() {
   long now = millis();
 
   //check for delayed off timer
-  if (delayOffTime > 0 && delayOffTime < now){
+  if (delayOffTime > 0 && delayOffTime < now) {
     Serial.println("Delayed turning off");
     turnOff();
   }
@@ -108,26 +108,26 @@ void loop() {
       bounceTimeout = now;
       toogle();
 
-    //button is released  
+      //button is released
     } else if (digitalRead(buttonPin) && buttomPressed) {
       Serial.println("Button released....");
-       
+
       //delayed off timer
       if ((now - buttomPressed > 1000) && (relayState == RELAY_ON)) {
         delayOffTime = (now - buttomPressed) * 60;
         Serial.print("Delay timer set for ");
         Serial.println(delayOffTime);
-        delayOffTime += now; 
-      } 
-      
+        delayOffTime += now;
+      }
+
       buttomPressed = false;
       bounceTimeout = now;
 
-    //after 30sec perfrom factory reset
+      //after 30sec perfrom factory reset
     } else if (buttomPressed && (now - buttomPressed) > 30000 ) {
-        ticker.attach(0.2, tick);
-        delay(5000);
-        factoryReset();
+      ticker.attach(0.2, tick);
+      delay(5000);
+      factoryReset();
     }
   }
 
@@ -154,11 +154,11 @@ void turnOn() {
   //cancel delayTimer
   delayOffTime = 0;
 
-  if(maxOnTimer > 0) {
+  if (maxOnTimer > 0) {
     long now = millis();
     delayOffTime = now + (maxOnTimer * 60 * 1000);
-  }     
-  
+  }
+
   sendCurrentStatus();
 }
 
@@ -175,7 +175,7 @@ void turnOff() {
 
 void sendCurrentStatus() {
   long remainingTimer  = delayOffTime - millis();
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer>0?remainingTimer:0);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }
@@ -197,24 +197,26 @@ void tick() {
 //Called to save the configuration data after
 //the device goes into AP mode for configuration
 void configSave() {
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
-    json["device"] = deviceName;
-    json["location"] = locationName;
-    json["mqttServer"] = mqttServer;
-    json.set("relay",relayPin);
-    json.set("led",ledPin);
-    json.set("button",buttonPin);
-    json.set("maxOnTimer",maxOnTimer);
-    sprintf (hostname, "%s-%s", locationName, deviceName);
+  DynamicJsonDocument jsonDoc(1024);
+  JsonObject json = jsonDoc.to<JsonObject>();
 
-    File configFile = SPIFFS.open("/config.json", "w");
-    if (configFile) {
-      Serial.println("Saving config data....");
-      json.prettyPrintTo(Serial);
-      json.printTo(configFile);
-      configFile.close();
-    }
+  json["device"] = deviceName;
+  json["location"] = locationName;
+  json["mqttServer"] = mqttServer;
+  json["relay"] = relayPin;
+  json["led"] = ledPin;
+  json["button"] = buttonPin;
+  json["maxOnTimer"] = maxOnTimer;
+  sprintf (hostname, "%s-%s", locationName, deviceName);
+
+  File configFile = SPIFFS.open("/config.json", "w");
+  if (configFile) {
+    Serial.println("Saving config data....");
+    serializeJson(json, Serial);
+    Serial.println();
+    serializeJson(json, configFile);
+    configFile.close();
+  }
 }
 
 //Loads the configuration data on start up
@@ -230,45 +232,44 @@ void configLoad() {
 
         configFile.readBytes(buf.get(), size);
 
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        if (json.success()) {
-          json.prettyPrintTo(Serial);
+        DynamicJsonDocument jsonDoc(size);
+        DeserializationError error = deserializeJson(jsonDoc, buf.get());
+        serializeJsonPretty(jsonDoc, Serial);
 
-          if (json.containsKey("device")) {
-            strncpy(deviceName, json["device"], 20);
-          } 
-                 
-          if (json.containsKey("location")) {
-            strncpy(locationName, json["location"], 20);
-          }
+        JsonObject json = jsonDoc.as<JsonObject>();
 
-          sprintf (hostname, "%s-%s", locationName, deviceName);
-
-          if (json.containsKey("mqttServer")) {
-            strncpy(mqttServer, json["mqttServer"], 50);
-          } else {
-            mqttServer[0]=0;
-          }
-          
-          if (json.containsKey("relay")) {
-            relayPin = json.get<signed int>("relay");
-          }
-            
-          if (json.containsKey("led")) {
-            ledPin = json.get<signed int>("led");
-          }
-
-          if (json.containsKey("button")) {
-            buttonPin = json.get<signed int>("button");
-          }
-
-          if (json.containsKey("maxOnTimer")) {
-            maxOnTimer = json.get<signed int>("maxOnTimer");
-          }
-          
-
+        if (json.containsKey("device")) {
+          strncpy(deviceName, json["device"], 20);
         }
+
+        if (json.containsKey("location")) {
+          strncpy(locationName, json["location"], 20);
+        }
+
+        sprintf (hostname, "%s-%s", locationName, deviceName);
+
+        if (json.containsKey("mqttServer")) {
+          strncpy(mqttServer, json["mqttServer"], 50);
+        } else {
+          mqttServer[0] = 0;
+        }
+
+        if (json.containsKey("relay")) {
+          relayPin = json["relay"];
+        }
+
+        if (json.containsKey("led")) {
+          ledPin = json["led"];
+        }
+
+        if (json.containsKey("button")) {
+          buttonPin = json["button"];
+        }
+
+        if (json.containsKey("maxOnTimer")) {
+          maxOnTimer = json["maxOnTimer"];
+        }
+
       }
     }
   }

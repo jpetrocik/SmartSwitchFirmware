@@ -3,7 +3,7 @@
 
 //LED state
 //#define LED_ON LOW
-#define LED_ON HIGH
+#define LED_ON LOW
 #define LED_OFF HIGH
 
 //Relay state
