@@ -1,6 +1,6 @@
 WiFiClientSecure _espClient;
 //PubSubClient _mqClient(_espClient);
-PubSubClient _mqClient(mqttServer, mqttServerPort, mqttCallback, _espClient);
+PubSubClient _mqClient(MQTT_SERVER, MQTT_PORT, mqttCallback, _espClient);
 
 int _reconnectAttemptCounter = 0;
 long _nextReconnectAttempt = 0;
@@ -15,12 +15,16 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message received on ");
   Serial.println (topic);
   if (strcmp(topic, _commandTopic) == 0) {
-    if ((char)payload[0] == '1') {
-      toogleDoor();
-    } else if ((char)payload[0] == '0') {
+    if ((char)payload[0] == '0') {
+      closeDoor();
+    } else if ((char)payload[0] == '1') {
+      openDoor();
+    } else if ((char)payload[0] == '2') {
       toogleDoor();
     } else if ((char)payload[0] == '3') {
       sendCurrentDoorStatus();
+    } else if ((char)payload[0] == 'U') {
+      updateFirmware();
     }
   } else if (strcmp(topic, _regTopic) == 0) {
     Serial.println("Device registered");
@@ -45,8 +49,11 @@ void mqttLoop() {
 
 void mqttConnect() {
   if (!_mqClient.connected() && _nextReconnectAttempt < millis() ) {
+    char clientId[20];
+    sprintf (clientId, "garage%08X", ESP.getChipId());
+
     Serial.println("Connecting to MQTT Server....");
-    if (_mqClient.connect(hostname, mqttUsername, mqttPassword)) {
+    if (_mqClient.connect(clientId, MQTT_USER, MQTT_PASSWORD)) {
       Serial.println("Connected to MQTT Server");
 
       //check for required registration

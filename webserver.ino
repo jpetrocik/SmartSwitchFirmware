@@ -7,14 +7,22 @@ void webServerSetup() {
 //   server.on("/door", handleDoor); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
+   server.on("/version", HTTP_GET, handleVersion); 
+
+#ifdef CONFIG_API_ENABLED
    server.on("/config", HTTP_GET, handleConfigureDevice); 
    server.on("/config", HTTP_PUT, handleSaveConfigureDevice); 
+#endif
 
    server.begin();
 }
 
 void webServerLoop() {
   server.handleClient();
+}
+
+void handleVersion() {
+  server.send(200, "application/json",  "{\"version\":\"" __DATE__ " " __TIME__ "\"}");
 }
 
 void handleDoor() {
@@ -72,14 +80,10 @@ void handleSaveConfigureDevice() {
 
     if (argName == "deviceName") {
       argValue.toCharArray(deviceName, 20);
-    } else if (argName == "mqttServer") {
-      argValue.toCharArray(mqttServer, 150);
-    } else if (argName == "mqttUsername") {
-      argValue.toCharArray(mqttUsername, 150);
-    } else if (argName == "mqttPassword") {
-      argValue.toCharArray(mqttPassword, 150);
-    } else if (argName == "mqttServerPort") {
-      mqttServerPort = argValue.toInt();
+    } else if (argName == "deviceToken") {
+      argValue.toCharArray(deviceToken, 40);
+    } else if (argName == "registeredPhone") {
+      argValue.toCharArray(registeredPhone, 15);
     } 
   }
 

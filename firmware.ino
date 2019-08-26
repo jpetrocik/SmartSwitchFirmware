@@ -13,6 +13,7 @@
 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266httpUpdate.h>
 #include <Bounce2.h>
 
 #include "configuration.h"
@@ -25,17 +26,11 @@ Bounce doorSwitch = Bounce();
 char jsonStatusMsg[140];
 
 //configuration properties
-char mqttServer[150] = MQTT_SERVER;
-char mqttUsername[150] = MQTT_USER;
-char mqttPassword[150] = MQTT_PASSWORD;
-int mqttServerPort = MQTT_PORT;
-
 char deviceName[20] = "Garage Door";
-char hostname[20] = "garage_door";
 char deviceToken[40] = "";
-char registeredPhone[15];
-char commandTopic[70];
-char statusTopic[70];
+char registeredPhone[15] = "";
+
+char hostname[20] = "garage";
 
 void setup() {
   Serial.begin(115200);
@@ -44,10 +39,10 @@ void setup() {
   pinMode(RELAY, OUTPUT);
 
   //setup pin read with bounce protection
-  doorSwitch.attach(DOOR_PIN, INPUT); 
-  doorSwitch.interval(1000);
+  doorSwitch.attach(DOOR_STATUS, INPUT_PULLUP); 
+  doorSwitch.interval(500);
 
-  sprintf (hostname, "garage_%08X", ESP.getChipId());
+  //sprintf (hostname, "garage_%08X", ESP.getChipId());
 
   //slow ticker when starting up
   //switch to fast tick when in AP mode
@@ -59,13 +54,17 @@ void setup() {
 
   mdnsSetup();
 
+#ifdef OTA_ENABLED
   otaSetup();
+#endif
 
   mqttSetup();
 
   webServerSetup();
 
   ticker.detach();
+
+  digitalWrite(ONBOARD_LED, !doorSwitch.read());
 
   Serial.println("SmartGarage Firmware");
   Serial.println(__DATE__ " " __TIME__);
@@ -77,11 +76,25 @@ void loop() {
 
   mqttLoop();
 
+#ifdef OTA_ENABLED
   otaLoop();
+#endif
 
   webServerLoop();
 
   sendDoorStatusOnChange();
+}
+
+void openDoor() {
+  if (!doorSwitch.read()) {
+    toogleDoor();
+  }
+}
+
+void closeDoor() {
+  if (doorSwitch.read()) {
+    toogleDoor();
+  }
 }
 
 void toogleDoor() {
@@ -119,6 +132,12 @@ void factoryReset() {
   ESP.restart();
 }
 
+void updateFirmware() {
+  WiFiClient wifiClient;
+  ESPhttpUpdate.setLedPin(ONBOARD_LED, LOW);
+  ESPhttpUpdate.update(wifiClient, "http://petrocik.net/~john/garage.bin");
+}
+
 void tick() {
   int state = digitalRead(ONBOARD_LED);
   digitalWrite(ONBOARD_LED, !state);
@@ -131,10 +150,6 @@ void configSave() {
   JsonObject json = doc.to<JsonObject>();
   json["deviceName"] = deviceName;
   json["registeredPhone"] = registeredPhone;
-  //  json["mqttServer"] = mqttServer;
-  //  json["mqttUsername"] = mqttUsername;
-  //  json["mqttPassword"] = mqttPassword;
-  //  json.set("mqttServerPort", mqttServerPort);
 
   if (strlen(deviceToken) >= 20)
     json["deviceToken"] = deviceToken;
@@ -179,21 +194,6 @@ void configLoad() {
           strncpy(registeredPhone, json["registeredPhone"], 15);
         }
 
-//        if (json.containsKey("mqttServer")) {
-//          strncpy(mqttServer, json["mqttServer"], 150);
-//        }
-//
-//        if (json.containsKey("mqttUsername")) {
-//          strncpy(mqttUsername, json["mqttUsername"], 150);
-//        }
-//
-//        if (json.containsKey("mqttPassword")) {
-//          strncpy(mqttPassword, json["mqttPassword"], 150);
-//        }
-//
-//        if (json.containsKey("mqttServerPort")) {
-//          mqttServerPort = json.get<signed int>("mqttServerPort");
-//        }
       }
     }
   }

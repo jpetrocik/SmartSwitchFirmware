@@ -7,6 +7,9 @@ void wifiSetup() {
   Serial.println("Setting up wifi connection....");
   WiFiManager wifiManager;
 
+  char apSid[20];
+  sprintf (apSid, "garage_%08X", ESP.getChipId());
+
   WiFiManagerParameter custom_registered_phone("registered_phone", "Mobile Phone", registeredPhone, 15, "required type=\"tel\" pattern=\"[0-9]{11}\" placeholder=\"15625551234\" required title=\"Please enter a valid phone number, e.g. 15625551234\"");
   wifiManager.addParameter(&custom_registered_phone);
   WiFiManagerParameter custom_device_name("device_name", "Device Name", deviceName, 20, "required");
@@ -16,7 +19,7 @@ void wifiSetup() {
   wifiManager.setDebugOutput(false);
   wifiManager.setAPCallback(wifiConfigModeCallback);
   wifiManager.setSaveConfigCallback(saveConfigCallback);
-  if (!wifiManager.autoConnect("SmartGarage")) { //-" + ESP.getChipId())) {
+  if (!wifiManager.autoConnect(apSid)) {
     Serial.println("Failed to connect, trying again...");
     ESP.restart();
   }
