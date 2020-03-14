@@ -82,7 +82,7 @@ void handleSaveConfigureDevice() {
     String argName = server.argName(i);
     String argValue = server.arg(i);
 
-    if (argName == "name") {
+    if (argName == "device") {
       argValue.toCharArray(deviceName, 20);
     } else if (argName == "location"){
       argValue.toCharArray(locationName, 20);
