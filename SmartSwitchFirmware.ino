@@ -30,7 +30,8 @@ long bounceTimeout = 0;
 
 //configuration properties
 char deviceName[20] = "light";
-char locationName[20] = "bedroom";
+char roomName[20] = "bedroom";
+char locationName[20] = "house";
 char hostname[41] = "light-bedroom";
 char mqttServer[50];
 int relayPin = GPIO12;
@@ -201,13 +202,14 @@ void configSave() {
   JsonObject json = jsonDoc.to<JsonObject>();
 
   json["device"] = deviceName;
+  json["room"] = roomName;
   json["location"] = locationName;
   json["mqttServer"] = mqttServer;
   json["relay"] = relayPin;
   json["led"] = ledPin;
   json["button"] = buttonPin;
   json["maxOnTimer"] = maxOnTimer;
-  sprintf (hostname, "%s-%s", locationName, deviceName);
+  sprintf (hostname, "%s-%s", roomName, deviceName);
 
   File configFile = SPIFFS.open("/config.json", "w");
   if (configFile) {
@@ -242,11 +244,15 @@ void configLoad() {
           strncpy(deviceName, json["device"], 20);
         }
 
+        if (json.containsKey("room")) {
+          strncpy(roomName, json["room"], 20);
+        }
+
         if (json.containsKey("location")) {
           strncpy(locationName, json["location"], 20);
         }
 
-        sprintf (hostname, "%s-%s", locationName, deviceName);
+        sprintf (hostname, "%s-%s", roomName, deviceName);
 
         if (json.containsKey("mqttServer")) {
           strncpy(mqttServer, json["mqttServer"], 50);

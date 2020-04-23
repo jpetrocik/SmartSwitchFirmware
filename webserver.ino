@@ -84,6 +84,8 @@ void handleSaveConfigureDevice() {
 
     if (argName == "device") {
       argValue.toCharArray(deviceName, 20);
+    } else if (argName == "room"){
+      argValue.toCharArray(roomName, 20);
     } else if (argName == "location"){
       argValue.toCharArray(locationName, 20);
     } else if (argName == "relay"){
