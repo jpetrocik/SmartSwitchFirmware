@@ -6,6 +6,7 @@ long _nextReconnectAttempt = 0;
 
 char _commandTopic[70];
 char _statusTopic[70];
+char _locationTopic[70];
 char _debugTopic[70];
 
 void mqttSetup() {
@@ -16,8 +17,8 @@ void mqttSetup() {
   _mqClient.setServer(mqttServer, 1883);
   _mqClient.setCallback(mqttCallback);
 
-  sprintf (_commandTopic, "house/%s/%s/command", locationName, deviceName);
-  sprintf (_statusTopic, "house/%s/%s/status", locationName, deviceName);
+  sprintf (_commandTopic, "%s/%s/%s/command", locationName, roomName, deviceName);
+  sprintf (_statusTopic, "%s/%s/%s/status", locationName, roomName, deviceName);
   sprintf (_debugTopic, "house/%s/%s/debug", locationName, deviceName);
 
 }
@@ -37,7 +38,7 @@ void mqttConnect() {
       Serial.println("Connected to MQTT Server");
       Serial.println(_commandTopic);
       _mqClient.subscribe(_commandTopic);
-      _mqClient.subscribe("house/command");
+      _mqClient.subscribe(_locationTopic);
 
       _reconnectAttemptCounter = 0;
       _nextReconnectAttempt=0;

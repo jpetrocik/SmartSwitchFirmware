@@ -25,7 +25,8 @@ int relayState = RELAY_OFF;
 
 //configuration properties
 char deviceName[20] = "fan";
-char locationName[20] = "hallway";
+char roomName[20] = "hallway";
+char locationName[20] = "house";
 char hostname[41] = "fan-hallway";
 char mqttServer[50];
 
@@ -102,7 +103,7 @@ void loop() {
   long now = millis();
 
   //check for delayed off timer
-  if (delayOffTime > 0 && delayOffTime < now){
+  if (delayOffTime > 0 && delayOffTime < now) {
     Serial.println("Delayed turning off");
     turnOff();
   }
@@ -122,6 +123,7 @@ void loop() {
   } else if (offSwitch.fell()) {
       mqttSendDebug("Off button pressed....");
       turnOff();
+
 
   }
 
@@ -152,11 +154,11 @@ void turnOnSafely(int relayPin) {
   //cancel delayTimer
   delayOffTime = 0;
 
-  if(maxOnTimer > 0) {
+  if (maxOnTimer > 0) {
     long now = millis();
     delayOffTime = now + (maxOnTimer * 60 * 1000);
-  }     
-  
+  }
+
   sendCurrentStatus();
 }
 
@@ -177,7 +179,7 @@ void turnOffQuitely() {
 
 void sendCurrentStatus() {
   long remainingTimer  = delayOffTime - millis();
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer>0?remainingTimer:0);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }
@@ -204,6 +206,7 @@ void configSave() {
   JsonObject json = jsonDoc.to<JsonObject>();
 
     json["device"] = deviceName;
+    json["room"] = roomName;
     json["location"] = locationName;
     json["mqttServer"] = mqttServer;
     json["highRelay"] = highRelayPin;
@@ -246,6 +249,10 @@ void configLoad() {
             strncpy(deviceName, json["device"], 20);
           } 
                  
+          if (json.containsKey("room")) {
+            strncpy(roomName, json["room"], 20);
+          }
+
           if (json.containsKey("location")) {
             strncpy(locationName, json["location"], 20);
           }
@@ -281,7 +288,6 @@ void configLoad() {
           if (json.containsKey("maxOnTimer")) {
             maxOnTimer = json["maxOnTimer"];
           }
-          
 
       }
     }

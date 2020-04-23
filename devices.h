@@ -27,6 +27,7 @@ const DEVICE_TMPLT devices[4] =  {
       "KS602S Switch",     
       GPIO12,
       GPIO13
+      //1Mb Memory
   }
 };
 

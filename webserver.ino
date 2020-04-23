@@ -9,7 +9,6 @@ void webServerSetup() {
    server.on("/off", handleTurnOff); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
-   server.on("/config", HTTP_GET, handleConfigureDevice); 
    server.on("/config", HTTP_PUT, handleSaveConfigureDevice); 
 
    server.begin();
@@ -50,7 +49,6 @@ void handleFactoryReset() {
   server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
 }
 
-
 void handleConfigureDevice() {
   Serial.println("Loading config data....");
   if (SPIFFS.exists("/config.json")) {
@@ -83,8 +81,10 @@ void handleSaveConfigureDevice() {
     String argName = server.argName(i);
     String argValue = server.arg(i);
 
-    if (argName == "name") {
+    if (argName == "device") {
       argValue.toCharArray(deviceName, 20);
+    } else if (argName == "room"){
+      argValue.toCharArray(roomName, 20);
     } else if (argName == "location"){
       argValue.toCharArray(locationName, 20);
     } else if (argName == "highRelay"){
