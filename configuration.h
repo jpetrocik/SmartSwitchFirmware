@@ -3,12 +3,13 @@
 
 //LED state
 //#define LED_ON LOW
-#define LED_ON LOW
+#define LED_ON HIGH
 #define LED_OFF HIGH
 
 //Relay state
 #define RELAY_OFF 0
-#define RELAY_ON 1
+#define RELAY_LOW 1
+#define RELAY_HIGH 2
 
 //GPIO
 #define GPIO00 0

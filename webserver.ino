@@ -9,6 +9,7 @@ void webServerSetup() {
    server.on("/off", handleTurnOff); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
+   server.on("/config", HTTP_GET, handleConfigureDevice); 
    server.on("/config", HTTP_PUT, handleSaveConfigureDevice); 
 
    server.begin();
@@ -99,7 +100,7 @@ void handleSaveConfigureDevice() {
       lowButtonPin = argValue.toInt();
     } else if (argName == "offButton"){
       offButtonPin = argValue.toInt();
-    } else if (argName == "server") {
+    } else if (argName == "mqttServer") {
       argValue.toCharArray(mqttServer, 50);
     }
 

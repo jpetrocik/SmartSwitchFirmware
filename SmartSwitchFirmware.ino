@@ -148,9 +148,13 @@ void turnOnSafely(int relayPin) {
   turnOffQuitely();
   delay(50);
 
-  digitalWrite(relayPin, RELAY_ON);
-  relayState = RELAY_ON;
-  
+  digitalWrite(relayPin, HIGH);
+  if (relayPin == highRelayPin) {
+    relayState = RELAY_HIGH;
+  }
+  if (relayPin == lowRelayPin) {
+    relayState = RELAY_LOW;
+  }
   //cancel delayTimer
   delayOffTime = 0;
 
@@ -179,7 +183,7 @@ void turnOffQuitely() {
 
 void sendCurrentStatus() {
   long remainingTimer  = delayOffTime - millis();
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\",\"level\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0, relayState);
 
   mqttSendStatus();
 }

@@ -6,7 +6,6 @@ long _nextReconnectAttempt = 0;
 
 char _commandTopic[70];
 char _statusTopic[70];
-char _locationTopic[70];
 char _debugTopic[70];
 
 void mqttSetup() {
@@ -38,7 +37,6 @@ void mqttConnect() {
       Serial.println("Connected to MQTT Server");
       Serial.println(_commandTopic);
       _mqClient.subscribe(_commandTopic);
-      _mqClient.subscribe(_locationTopic);
 
       _reconnectAttemptCounter = 0;
       _nextReconnectAttempt=0;
@@ -65,9 +63,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if ((char)payload[0] == '0') {
     turnOff();
   } else if ((char)payload[0] == '1') {
-    turnOnHigh();
-  } else if ((char)payload[0] == '2') {
     turnOnLow();
+  } else if ((char)payload[0] == '2') {
+    turnOnHigh();
   } else if ((char)payload[0] == '3') {
     sendCurrentStatus();
   }
