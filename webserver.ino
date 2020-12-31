@@ -89,6 +89,8 @@ void handleSaveConfigureDevice() {
       ledPin = argValue.toInt();
     } else if (argName == "button"){
       buttonPin = argValue.toInt();
+    } else if (argName == "status"){
+      statusPin = argValue.toInt();
     } else if (argName == "server") {
       argValue.toCharArray(mqttServer, 50);
     }

@@ -10,23 +10,17 @@
 #include <ArduinoJson.h>
 #include <ESP8266mDNS.h>
 #include <PubSubClient.h>
+#include <Bounce2.h>
 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
 #include "configuration.h"
-#include "devices.h"
 
 Ticker ticker;
 
-//current status of relay
-int relayState = RELAY_OFF;
-
-//maintains when the button was pressed
-//action is taken on button release
-//this allows for long press features
-unsigned long buttomPressed = false; //time button was press, so must be unsigned long
-long bounceTimeout = 0;
+Bounce button = Bounce();
+Bounce status = Bounce();
 
 //configuration properties
 char deviceName[20] = "light";
@@ -34,9 +28,10 @@ char roomName[20] = "bedroom";
 char locationName[20] = "house";
 char hostname[41] = "light-bedroom";
 char mqttServer[50];
-int relayPin = GPIO12;
-int ledPin = GPIO13;
-int buttonPin = GPIO00;
+int relayPin = RELAY_PIN;
+int ledPin = LED_PIN;
+int buttonPin = BUTTON_PIN;
+int statusPin = STATUS_PIN;
 int maxOnTimer = 0;
 
 //set when AP mode is enabled to indicating the
@@ -60,9 +55,15 @@ void setup() {
 
   pinMode(ledPin, OUTPUT);
   pinMode(relayPin, OUTPUT);
-  pinMode(buttonPin, INPUT);
 
-  digitalWrite(relayPin, RELAY_OFF);
+  digitalWrite(relayPin, RELAY_OPEN);
+
+  //setup pin read with bounce protection
+  button.attach(buttonPin, INPUT); 
+  button.interval(25);
+
+  status.attach(statusPin, INPUT_PULLUP); 
+  status.interval(500);
 
   //slow ticker when starting up
   //switch to fast tick when in AP mode
@@ -88,50 +89,25 @@ void setup() {
 void loop() {
   long now = millis();
 
+  button.update();
+  
   //check for delayed off timer
   if (delayOffTime > 0 && delayOffTime < now) {
     Serial.println("Delayed turning off");
     turnOff();
   }
 
-  //action is taken when button is released. any
-  //button pressed within 100ms is consider a bounce and
-  //ignored.
-  //
-  //<1.5sec: toggle relay
-  //>1.5: delay off sec * minutes
-  if (now - bounceTimeout  > 100 ) {
-
-    //button initially pressed
-    if (!digitalRead(buttonPin) && !buttomPressed) {
-      Serial.println("Button pressed....");
-      buttomPressed = now;
-      bounceTimeout = now;
+  if (button.fell()) {
       toogle();
-
-      //button is released
-    } else if (digitalRead(buttonPin) && buttomPressed) {
-      Serial.println("Button released....");
-
-      //delayed off timer
-      if ((now - buttomPressed > 1000) && (relayState == RELAY_ON)) {
-        delayOffTime = (now - buttomPressed) * 60;
-        Serial.print("Delay timer set for ");
-        Serial.println(delayOffTime);
-        delayOffTime += now;
-      }
-
-      buttomPressed = false;
-      bounceTimeout = now;
-
-      //after 30sec perfrom factory reset
-    } else if (buttomPressed && (now - buttomPressed) > 30000 ) {
-      ticker.attach(0.2, tick);
-      delay(5000);
-      factoryReset();
-    }
   }
 
+  boolean changed = status.update();
+  if (changed) {
+    sendCurrentStatus();
+    int doorState = !status.read();
+    digitalWrite(ledPin, doorState);
+  }
+  
   mqttLoop();
 
   otaLoop();
@@ -140,7 +116,8 @@ void loop() {
 }
 
 void toogle() {
-  if (relayState == RELAY_ON) {
+  int relayState = digitalRead(statusPin);
+  if (relayState == RELAY_CLOSE) {
     turnOff();
   } else {
     turnOn();
@@ -148,9 +125,8 @@ void toogle() {
 }
 
 void turnOn() {
-  digitalWrite(relayPin, RELAY_ON);
+  digitalWrite(relayPin, RELAY_CLOSE);
   digitalWrite(ledPin, LED_ON);
-  relayState = RELAY_ON;
 
   //cancel delayTimer
   delayOffTime = 0;
@@ -159,23 +135,19 @@ void turnOn() {
     long now = millis();
     delayOffTime = now + (maxOnTimer * 60 * 1000);
   }
-
-  sendCurrentStatus();
 }
 
 void turnOff() {
-  digitalWrite(relayPin, RELAY_OFF);
+  digitalWrite(relayPin, RELAY_OPEN);
   digitalWrite(ledPin, LED_OFF);
-  relayState = RELAY_OFF;
 
   //reset or cancel delayTimer
   delayOffTime = 0;
-
-  sendCurrentStatus();
 }
 
 void sendCurrentStatus() {
   long remainingTimer  = delayOffTime - millis();
+  int relayState = digitalRead(statusPin);
   sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
@@ -209,6 +181,7 @@ void configSave() {
   json["led"] = ledPin;
   json["button"] = buttonPin;
   json["maxOnTimer"] = maxOnTimer;
+  json["status"] = statusPin;
   sprintf (hostname, "%s-%s", roomName, deviceName);
 
   File configFile = SPIFFS.open("/config.json", "w");
@@ -272,6 +245,10 @@ void configLoad() {
           buttonPin = json["button"];
         }
 
+        if (json.containsKey("status")) {
+          statusPin = json["status"];
+        }
+
         if (json.containsKey("maxOnTimer")) {
           maxOnTimer = json["maxOnTimer"];
         }
@@ -280,11 +257,3 @@ void configLoad() {
     }
   }
 }
-
-
-
-
-
-
-
-
