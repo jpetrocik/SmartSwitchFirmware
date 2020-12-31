@@ -23,23 +23,23 @@ Bounce button = Bounce();
 Bounce status = Bounce();
 
 //configuration properties
-char deviceName[20] = "light";
-char roomName[20] = "bedroom";
+char deviceName[20] = "door";
+char roomName[20] = "garage";
 char locationName[20] = "house";
-char hostname[41] = "light-bedroom";
+char hostname[41] = "garage-door";
 char mqttServer[50];
 int relayPin = RELAY_PIN;
 int ledPin = LED_PIN;
 int buttonPin = BUTTON_PIN;
 int statusPin = STATUS_PIN;
-int maxOnTimer = 0;
+int maxOnTimer = 2 * 60;
 
 //set when AP mode is enabled to indicating the
 //config data needs to be saved
 bool shouldSaveConfig = false;
 
 //time after which light will turn off
-long delayOffTime = 0;
+long delayCloseTime = 0;
 
 //contains last json status message
 char jsonStatusMsg[140];
@@ -49,7 +49,7 @@ void setup() {
 
   configLoad();
 
-  Serial.println("SmartHome Firmware");
+  Serial.println("SmartGarage Firmware");
   Serial.println(__DATE__ " " __TIME__);
   Serial.println(hostname);
 
@@ -92,9 +92,9 @@ void loop() {
   button.update();
   
   //check for delayed off timer
-  if (delayOffTime > 0 && delayOffTime < now) {
-    Serial.println("Delayed turning off");
-    turnOff();
+  if (delayCloseTime > 0 && delayCloseTime < now) {
+    Serial.println("Delayed closing door");
+    closeDoor();
   }
 
   if (button.fell()) {
@@ -116,37 +116,49 @@ void loop() {
 }
 
 void toogle() {
-  int relayState = digitalRead(statusPin);
-  if (relayState == RELAY_CLOSE) {
-    turnOff();
+  int doorState = digitalRead(statusPin);
+  if (doorState == DOOR_CLOSE) {
+    openDoor();
   } else {
-    turnOn();
+    closeDoor();
   }
 }
 
-void turnOn() {
-  digitalWrite(relayPin, RELAY_CLOSE);
-  digitalWrite(ledPin, LED_ON);
+void openDoor() {
+  int doorState = digitalRead(statusPin);
+  if (doorState == DOOR_OPEN) 
+    return;
+  
+  operateDoor();  
 
   //cancel delayTimer
-  delayOffTime = 0;
+  delayCloseTime = 0;
 
   if (maxOnTimer > 0) {
     long now = millis();
-    delayOffTime = now + (maxOnTimer * 60 * 1000);
+    delayCloseTime = now + (maxOnTimer * 60 * 1000);
   }
 }
 
-void turnOff() {
-  digitalWrite(relayPin, RELAY_OPEN);
-  digitalWrite(ledPin, LED_OFF);
+void closeDoor() {
+  int doorState = digitalRead(statusPin);
+  if (doorState == DOOR_CLOSE) 
+    return;
+
+  operateDoor();
 
   //reset or cancel delayTimer
-  delayOffTime = 0;
+  delayCloseTime = 0;
+}
+
+void operateDoor() {
+  digitalWrite(relayPin, RELAY_CLOSE);
+  delay(1000);
+  digitalWrite(relayPin, RELAY_OPEN);
 }
 
 void sendCurrentStatus() {
-  long remainingTimer  = delayOffTime - millis();
+  long remainingTimer  = delayCloseTime - millis();
   int relayState = digitalRead(statusPin);
   sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 

@@ -5,7 +5,8 @@
 //#define SONOFF_BASIC
 //#define KMC_SMART_PLUG
 //#define SONOFF_DUAL_R2
-#define KS602S_SWITCH
+//#define KS602S_SWITCH
+#define GARAGE
 
 #ifdef SONOFF_BASIC
   #define RELAY_PIN 12
@@ -42,6 +43,8 @@
   #define LED_PIN 2
   #define BUTTON_PIN 0
   #define STATUS_PIN 12
+  #define DOOR_CLOSE 1
+  #define DOOR_OPEN 0
 #endif
 
 #ifdef RELAY_INVERTED

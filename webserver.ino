@@ -4,8 +4,9 @@ ESP8266WebServer server(80);
 void webServerSetup() {
   Serial.println("Starting web server on port 80");
    server.on("/", handleStatus); 
-   server.on("/open", handleTurnOn); 
-   server.on("/close", handleTurnOff); 
+   server.on("/open", handleOpenDoor); 
+   server.on("/close", handleCloseDoor); 
+   server.on("/toggle", handleDoor); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
    server.on("/config", HTTP_GET, handleConfigureDevice); 
@@ -18,12 +19,21 @@ void webServerLoop() {
   server.handleClient();
 }
 
-void handleVersion() {
-  server.send(200, "application/json",  "{\"version\":\"" __DATE__ " " __TIME__ "\"}");
+void handleOpenDoor() {
+  openDoor();
+  delay(2000);
+  server.send(200, "application/json",  (char *)jsonStatusMsg);
+}
+
+void handleCloseDoor() {
+  closeDoor();
+  delay(2000);
+  server.send(200, "application/json",  (char *)jsonStatusMsg);
 }
 
 void handleDoor() {
-  toogleDoor();
+  toogle();
+  delay(2000);
   server.send(200, "application/json",  (char *)jsonStatusMsg);
 }
 
