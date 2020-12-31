@@ -159,8 +159,8 @@ void operateDoor() {
 
 void sendCurrentStatus() {
   long remainingTimer  = delayCloseTime - millis();
-  int relayState = digitalRead(statusPin);
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
+  int doorState = digitalRead(statusPin);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", doorState == DOOR_OPEN ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }
