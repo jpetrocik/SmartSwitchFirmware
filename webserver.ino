@@ -3,16 +3,13 @@ ESP8266WebServer server(80);
 
 void webServerSetup() {
   Serial.println("Starting web server on port 80");
-//   server.on("/", handleStatus); 
-//   server.on("/door", handleDoor); 
+   server.on("/", handleStatus); 
+   server.on("/open", handleTurnOn); 
+   server.on("/close", handleTurnOff); 
    server.on("/restart", HTTP_POST, handleRestart); 
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
-   server.on("/version", HTTP_GET, handleVersion); 
-
-#ifdef CONFIG_API_ENABLED
    server.on("/config", HTTP_GET, handleConfigureDevice); 
-   server.on("/config", HTTP_PUT, handleSaveConfigureDevice); 
-#endif
+   server.on("/config", HTTP_PUT, handleSaveConfigureDevice);
 
    server.begin();
 }
@@ -38,12 +35,6 @@ void handleRestart() {
   server.send(200, "application/json",  "{\"message\":\"Restarting\"}");
   delay(1000);
   ESP.restart();
-}
-
-void handleFactoryReset() {
-  server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
-  delay(1000);
-  factoryReset();
 }
 
 void handleConfigureDevice() {
@@ -72,23 +63,39 @@ void handleConfigureDevice() {
 
 }
 
+void handleFactoryReset() {
+  factoryReset();
+  delay(1000);
+  server.send(200, "application/json",  "{\"message\":\"Factory Reset\"}");
+}
+
 void handleSaveConfigureDevice() {
   int argCount = server.args();
   for (int i=0; i<argCount; i++){
     String argName = server.argName(i);
     String argValue = server.arg(i);
 
-    if (argName == "deviceName") {
+    if (argName == "device") {
       argValue.toCharArray(deviceName, 20);
-    } else if (argName == "deviceToken") {
-      argValue.toCharArray(deviceToken, 40);
-    } else if (argName == "registeredPhone") {
-      argValue.toCharArray(registeredPhone, 15);
-    } 
+    } else if (argName == "room"){
+      argValue.toCharArray(roomName, 20);
+    } else if (argName == "location"){
+      argValue.toCharArray(locationName, 20);
+    } else if (argName == "relay"){
+      relayPin = argValue.toInt();
+    } else if (argName == "maxOnTimer"){
+      maxOnTimer = argValue.toInt();
+    } else if (argName == "led"){
+      ledPin = argValue.toInt();
+    } else if (argName == "button"){
+      buttonPin = argValue.toInt();
+    } else if (argName == "server") {
+      argValue.toCharArray(mqttServer, 50);
+    }
+
   }
 
   configSave();
 
   handleConfigureDevice();
 }
-

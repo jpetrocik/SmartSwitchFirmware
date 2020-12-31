@@ -1,8 +1,10 @@
 #ifndef Configuration_h
 #define Configuration_h
 
-#define CONFIG_API_ENABLED
-#define OTA_ENABLED
+//LED state
+//#define LED_ON LOW
+#define LED_ON LOW
+#define LED_OFF HIGH
 
 //v1.1 PINOUTS
 #define ONBOARD_LED 2

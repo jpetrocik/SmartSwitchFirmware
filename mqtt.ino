@@ -7,33 +7,20 @@ long _nextReconnectAttempt = 0;
 
 char _commandTopic[70];
 char _statusTopic[70];
-char _regToken[20];
-char _regTopic[70];
+char _locationTopic[70];
 
-//callback when a mqtt message is recieved
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message received on ");
-  Serial.println (topic);
-  if (strcmp(topic, _commandTopic) == 0) {
-    if ((char)payload[0] == '0') {
-      closeDoor();
-    } else if ((char)payload[0] == '1') {
-      openDoor();
-    } else if ((char)payload[0] == '2') {
-      toogleDoor();
-    } else if ((char)payload[0] == '3') {
-      sendCurrentDoorStatus();
-    } else if ((char)payload[0] == 'U') {
-      updateFirmware();
-    }
-  } else if (strcmp(topic, _regTopic) == 0) {
-    Serial.println("Device registered");
-    memcpy(deviceToken, payload, length);
-    configSave();
-    mqttSubscribe();
-    _mqClient.unsubscribe(_regTopic);
-  }
-}
+void mqttSetup() {
+  if(strlen(mqttServer) == 0)
+    return;
+    
+  Serial.println("Connecting to MQTT Server....");
+  _mqClient.setServer(mqttServer, 1883);
+  _mqClient.setCallback(mqttCallback);
+  _mqClient.setKeepAlive(120);
+  
+  sprintf (_commandTopic, "%s/%s/%s/command", locationName, roomName, deviceName);
+  sprintf (_statusTopic, "%s/%s/%s/status", locationName, roomName, deviceName);
+  sprintf (_locationTopic, "%s/command", locationName);
 
 void mqttSetup() {
   _espClient.setInsecure(); 
@@ -55,13 +42,9 @@ void mqttConnect() {
     Serial.println("Connecting to MQTT Server....");
     if (_mqClient.connect(clientId, MQTT_USER, MQTT_PASSWORD)) {
       Serial.println("Connected to MQTT Server");
-
-      //check for required registration
-      if (!mqttIsRegistered()) {
-        mqttRegister();
-      } else {
-        mqttSubscribe();
-      }
+      Serial.println(_commandTopic);
+      _mqClient.subscribe(_commandTopic);
+      _mqClient.subscribe(_locationTopic);
 
       _reconnectAttemptCounter = 0;
       _nextReconnectAttempt = 0;
@@ -141,4 +124,3 @@ void mqttSubscribe() {
 
   _mqClient.subscribe(_commandTopic);
 }
-
