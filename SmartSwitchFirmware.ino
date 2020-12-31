@@ -140,7 +140,7 @@ void turnOff() {
 void sendCurrentStatus() {
   long remainingTimer  = delayOffTime - millis();
   int relayState = digitalRead(relayPin);
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
+  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", relayState == RELAY_CLOSE ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }

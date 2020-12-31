@@ -15,7 +15,7 @@ void mqttSetup() {
   Serial.println("Connecting to MQTT Server....");
   _mqClient.setServer(mqttServer, 1883);
   _mqClient.setCallback(mqttCallback);
-  _mqClient.setKeepAlive(120);
+//  _mqClient.setKeepAlive(120);
   
   sprintf (_commandTopic, "%s/%s/%s/command", locationName, roomName, deviceName);
   sprintf (_statusTopic, "%s/%s/%s/status", locationName, roomName, deviceName);
