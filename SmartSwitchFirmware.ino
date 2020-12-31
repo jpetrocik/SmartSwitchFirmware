@@ -25,7 +25,7 @@ Bounce button = Bounce();
 char deviceName[20] = "light";
 char roomName[20] = "bedroom";
 char locationName[20] = "house";
-char hostname[41] = "light-bedroom";
+char hostname[41] = "bedroom-light";
 char mqttServer[50];
 int relayPin = RELAY_PIN;
 int ledPin = LED_PIN;
