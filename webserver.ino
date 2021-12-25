@@ -11,6 +11,7 @@ void webServerSetup() {
    server.on("/factoryreset", HTTP_POST, handleFactoryReset); 
    server.on("/config", HTTP_GET, handleConfigureDevice); 
    server.on("/config", HTTP_PUT, handleSaveConfigureDevice);
+   server.on("/mqtt", handleMqttStatus); 
 
    server.begin();
 }
@@ -110,4 +111,10 @@ void handleSaveConfigureDevice() {
   configSave();
 
   handleConfigureDevice();
+}
+
+void handleMqttStatus() {
+  char statusMSg[150];
+  mqttStatus(statusMSg);
+  server.send(200, "application/json",  (char *)statusMSg);
 }

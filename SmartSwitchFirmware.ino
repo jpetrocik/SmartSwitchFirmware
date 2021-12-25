@@ -32,7 +32,7 @@ int relayPin = RELAY_PIN;
 int ledPin = LED_PIN;
 int buttonPin = BUTTON_PIN;
 int statusPin = STATUS_PIN;
-int maxOnTimer = 2 * 60;
+int maxOnTimer = 0;
 
 //set when AP mode is enabled to indicating the
 //config data needs to be saved
@@ -103,9 +103,15 @@ void loop() {
 
   boolean changed = status.update();
   if (changed) {
-    sendCurrentStatus();
+    sendCurrentStatus(true);
     int doorState = !status.read();
     digitalWrite(ledPin, doorState);
+  }
+
+  //reset or cancel delayTimer if door is closed
+  int doorState = digitalRead(statusPin);
+  if (doorState == DOOR_CLOSE) {
+    delayCloseTime = 0;
   }
   
   mqttLoop();
@@ -146,9 +152,6 @@ void closeDoor() {
     return;
 
   operateDoor();
-
-  //reset or cancel delayTimer
-  delayCloseTime = 0;
 }
 
 void operateDoor() {
@@ -157,10 +160,11 @@ void operateDoor() {
   digitalWrite(relayPin, RELAY_OPEN);
 }
 
-void sendCurrentStatus() {
-  long remainingTimer  = delayCloseTime - millis();
+void sendCurrentStatus(boolean changed) {
+  long remainingTimer  = delayCloseTime > 0 ? delayCloseTime - millis() : 0;
   int doorState = digitalRead(statusPin);
-  sprintf (jsonStatusMsg, "{\"status\":%s,\"delayOff\":\"%i\"}", doorState == DOOR_OPEN ? "\"ON\"" : "\"OFF\"", remainingTimer > 0 ? remainingTimer : 0);
+
+  sprintf (jsonStatusMsg, "{\"status\":\"%s\", \"changed\":%s, \"autoClose\":%i}", doorState == DOOR_CLOSE ? "CLOSED" : "OPEN", changed ? "true" : "false", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }
@@ -263,6 +267,8 @@ void configLoad() {
 
         if (json.containsKey("maxOnTimer")) {
           maxOnTimer = json["maxOnTimer"];
+        } else {
+          maxOnTimer = 0;
         }
 
       }

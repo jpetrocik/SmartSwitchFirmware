@@ -6,7 +6,6 @@ long _nextReconnectAttempt = 0;
 
 char _commandTopic[70];
 char _statusTopic[70];
-char _locationTopic[70];
 
 void mqttSetup() {
   if(strlen(mqttServer) == 0)
@@ -22,6 +21,10 @@ void mqttSetup() {
 
 }
 
+void mqttStatus(char* mqttStatus){
+  sprintf(mqttStatus, "{\"status\":\"%s\",\"command\":\"%s\", \"status\":\"%s\"}", _mqClient.connected()?"connected":"not connected", _commandTopic, _statusTopic);
+}
+  
 void mqttLoop(){
   if (!_mqClient.connected()) {
     mqttConnect();
@@ -37,7 +40,7 @@ void mqttConnect() {
       Serial.println("Connected to MQTT Server");
       Serial.println(_commandTopic);
       _mqClient.subscribe(_commandTopic);
-      _mqClient.subscribe(_locationTopic);
+      _mqClient.subscribe(_statusTopic);
 
       _reconnectAttemptCounter = 0;
       _nextReconnectAttempt=0;
@@ -61,14 +64,14 @@ void mqttConnect() {
 
 //callback when a mqtt message is recieved
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  if ((char)payload[0] == '1') {
-    openDoor();
-  } else if ((char)payload[0] == '0') {
+  if ((char)payload[0] == '0') {
     closeDoor();
+  } else if ((char)payload[0] == '1') {
+    openDoor();
   } else if ((char)payload[0] == '2') {
     toogle();
   } else if ((char)payload[0] == '3') {
-    sendCurrentStatus();
+    sendCurrentStatus(false);
   }
 }
 
