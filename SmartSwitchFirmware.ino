@@ -164,7 +164,7 @@ void sendCurrentStatus(boolean changed) {
   long remainingTimer  = delayCloseTime > 0 ? delayCloseTime - millis() : 0;
   int doorState = digitalRead(statusPin);
 
-  sprintf (jsonStatusMsg, "{\"status\":\"%s\", \"changed\":%s, \"autoClose\":%i}", doorState == DOOR_CLOSE ? "CLOSED" : "OPEN", changed ? "true" : "false", remainingTimer > 0 ? remainingTimer : 0);
+  sprintf (jsonStatusMsg, "{\"status\":%i, \"changed\":%s, \"autoClose\":%i}", doorState == DOOR_CLOSE ? 0 : 1, changed ? "true" : "false", remainingTimer > 0 ? remainingTimer : 0);
 
   mqttSendStatus();
 }
